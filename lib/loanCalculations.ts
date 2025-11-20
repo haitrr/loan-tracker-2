@@ -1,4 +1,4 @@
-import { LoanParams, PaymentScheduleItem, LoanSummary, Payment } from './types';
+import { LoanParams, PaymentScheduleItem, LoanSummary, Payment, PaymentStatus } from './types';
 
 /**
  * Get the number of payments per year based on frequency
@@ -459,6 +459,73 @@ export function calculatePrepaymentFee(
 }
 
 /**
+ * Calculate payment status for each scheduled payment
+ * Logic:
+ * - "paid": All interest and principal of all prior payments and itself are paid
+ * - "outstanding": Any interest or principal from prior payments or itself is unpaid
+ * - "partial-paid": For future payments where part or all of principal is prepaid
+ * - "pending": Future payment with no payments made
+ */
+export function calculatePaymentStatus(
+  scheduleItem: PaymentScheduleItem,
+  allScheduleItems: PaymentScheduleItem[],
+  enrichedPayments: Array<Payment & { principalPaid: number; interestPaid: number }>
+): PaymentStatus {
+  const itemIndex = allScheduleItems.findIndex(s => s.paymentNumber === scheduleItem.paymentNumber);
+  const today = new Date();
+  const scheduleDate = new Date(scheduleItem.paymentDate);
+  const isFuturePayment = scheduleDate > today;
+  
+  // Get all payments up to this scheduled payment
+  const paymentsUpToThis = enrichedPayments.filter(p => {
+    return new Date(p.paymentDate) <= scheduleDate;
+  });
+  
+  // Calculate total interest and principal expected up to this payment
+  let totalExpectedInterest = 0;
+  let totalExpectedPrincipal = 0;
+  
+  for (let i = 0; i <= itemIndex; i++) {
+    totalExpectedInterest += allScheduleItems[i].interestAmount;
+    totalExpectedPrincipal += allScheduleItems[i].principalAmount;
+  }
+  
+  // Calculate total interest and principal actually paid
+  let totalPaidInterest = 0;
+  let totalPaidPrincipal = 0;
+  
+  paymentsUpToThis.forEach(p => {
+    totalPaidInterest += p.interestPaid;
+    totalPaidPrincipal += p.principalPaid;
+  });
+  
+  // Check if all interest and principal are paid
+  const interestFullyPaid = totalPaidInterest >= totalExpectedInterest - 0.01; // Allow small rounding errors
+  const principalFullyPaid = totalPaidPrincipal >= totalExpectedPrincipal - 0.01;
+  
+  if (interestFullyPaid && principalFullyPaid) {
+    return 'paid';
+  }
+  
+  // For future payments, check if partial principal is paid
+  if (isFuturePayment) {
+    // Check if any principal for this specific payment is prepaid
+    const principalPaidForThis = totalPaidPrincipal - (allScheduleItems
+      .slice(0, itemIndex)
+      .reduce((sum, s) => sum + s.principalAmount, 0));
+    
+    if (principalPaidForThis > 0.01) {
+      return 'partial-paid';
+    }
+    
+    return 'pending';
+  }
+  
+  // Past or current payment that is not fully paid
+  return 'outstanding';
+}
+
+/**
  * Recalculate payment schedule after payments have been made
  * This adjusts the schedule based on actual payments and recalculates from the current position
  */
@@ -470,12 +537,23 @@ export function recalculateScheduleWithPayments(
   const originalSchedule = generatePaymentSchedule(params);
   
   if (payments.length === 0) {
-    return originalSchedule;
+    return originalSchedule.map(item => ({
+      ...item,
+      status: 'pending' as PaymentStatus
+    }));
   }
   
   // Sort payments by date
   const sortedPayments = [...payments].sort(
     (a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()
+  );
+  
+  // Enrich payments with breakdown
+  const enrichedPayments = enrichPaymentsWithBreakdown(
+    sortedPayments,
+    originalSchedule,
+    params.prepaymentFeePercentage || 0,
+    params
   );
   
   // Calculate total prepayment amount (excluding scheduled principal)
@@ -551,7 +629,13 @@ export function recalculateScheduleWithPayments(
     }
   }
   
-  return adjustedSchedule;
+  // Calculate statuses for all schedule items
+  const scheduleWithStatus = adjustedSchedule.map((item) => ({
+    ...item,
+    status: calculatePaymentStatus(item, adjustedSchedule, enrichedPayments)
+  }));
+  
+  return scheduleWithStatus;
 }
 
 /**

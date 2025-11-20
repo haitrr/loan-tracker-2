@@ -29,15 +29,19 @@ export default function PaymentScheduleTable({ schedule }: PaymentScheduleTableP
           </thead>
           <tbody>
             {schedule.map((payment, index) => {
-              const isPaid = !!payment.actualPayment;
+              const status = payment.status || 'pending';
               const isPrepayment = payment.actualPayment?.isPrepayment;
               
               return (
                 <tr
                   key={payment.paymentNumber}
                   className={`border-b border-gray-700 ${
-                    isPaid
+                    status === 'paid'
                       ? 'bg-green-900/30'
+                      : status === 'partial-paid'
+                      ? 'bg-yellow-900/30'
+                      : status === 'outstanding'
+                      ? 'bg-red-900/30'
                       : payment.rateType === 'fixed'
                       ? 'bg-blue-900/20'
                       : 'bg-green-900/20'
@@ -63,21 +67,21 @@ export default function PaymentScheduleTable({ schedule }: PaymentScheduleTableP
                   </td>
                   <td className="px-4 py-3 text-right text-red-400 font-medium">
                     {formatCurrency(
-                      isPaid ? payment.actualPayment!.interestPaid : payment.interestAmount
+                      payment.actualPayment?.interestPaid ?? payment.interestAmount
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-green-400 font-medium">
                     {formatCurrency(
-                      isPaid ? payment.actualPayment!.principalPaid : payment.principalAmount
+                      payment.actualPayment?.principalPaid ?? payment.principalAmount
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-200 font-semibold">
                     {formatCurrency(
-                      isPaid ? payment.actualPayment!.paymentAmount : payment.totalPayment
+                      payment.actualPayment?.paymentAmount ?? payment.totalPayment
                     )}
-                    {isPaid && payment.actualPayment!.prepaymentFee > 0 && (
+                    {payment.actualPayment && (payment.actualPayment.prepaymentFee ?? 0) > 0 && (
                       <div className="text-xs text-yellow-400">
-                        +{formatCurrency(payment.actualPayment!.prepaymentFee)} fee
+                        +{formatCurrency(payment.actualPayment.prepaymentFee!)} fee
                       </div>
                     )}
                   </td>
@@ -85,7 +89,7 @@ export default function PaymentScheduleTable({ schedule }: PaymentScheduleTableP
                     {formatCurrency(payment.closingBalance)}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {isPaid ? (
+                    {status === 'paid' ? (
                       <span
                         className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
                           isPrepayment
@@ -94,6 +98,14 @@ export default function PaymentScheduleTable({ schedule }: PaymentScheduleTableP
                         }`}
                       >
                         {isPrepayment ? 'Prepaid' : 'Paid'}
+                      </span>
+                    ) : status === 'partial-paid' ? (
+                      <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-yellow-700 text-yellow-200">
+                        Partial
+                      </span>
+                    ) : status === 'outstanding' ? (
+                      <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-red-700 text-red-200">
+                        Outstanding
                       </span>
                     ) : (
                       <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-gray-700 text-gray-400">
@@ -119,11 +131,15 @@ export default function PaymentScheduleTable({ schedule }: PaymentScheduleTableP
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-green-900/30 border border-green-600 rounded"></div>
-          <span className="text-gray-300">Payment Made</span>
+          <span className="text-gray-300">Paid</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-yellow-700 rounded"></div>
-          <span className="text-gray-300">Prepayment</span>
+          <div className="w-4 h-4 bg-yellow-900/30 border border-yellow-600 rounded"></div>
+          <span className="text-gray-300">Partial Paid</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-red-900/30 border border-red-600 rounded"></div>
+          <span className="text-gray-300">Outstanding</span>
         </div>
       </div>
     </div>

@@ -1,3 +1,5 @@
+export type PaymentStatus = 'paid' | 'outstanding' | 'partial-paid' | 'pending';
+
 export interface LoanParams {
   principal: number;
   fixedRate: number; // Annual rate as percentage
@@ -20,6 +22,7 @@ export interface PaymentScheduleItem {
   interestRate: number;
   rateType: 'fixed' | 'floating';
   actualPayment?: Payment; // Track if this payment was actually made
+  status?: PaymentStatus; // Payment status
 }
 
 export interface Payment {
@@ -30,6 +33,11 @@ export interface Payment {
   notes?: string;
   createdAt?: Date;
   updatedAt?: Date;
+  // Enriched fields (calculated)
+  principalPaid?: number;
+  interestPaid?: number;
+  prepaymentFee?: number;
+  isPrepayment?: boolean;
 }
 
 export interface LoanSummary {
