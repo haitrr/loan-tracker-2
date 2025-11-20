@@ -1,0 +1,25 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Loan {
+  id                String   @id @default(cuid())
+  name              String
+  principal         Float
+  fixedRate         Float
+  floatingRate      Float
+  fixedPeriodMonths Int
+  totalTermMonths   Int
+  startDate         DateTime
+  paymentFrequency  String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
