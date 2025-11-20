@@ -11,7 +11,6 @@ When a payment is made, it is applied in the following order:
 3. **Principal** - Remaining amount goes towards principal (scheduled principal + any prepayment amount)
 
 
-
 ## Properties
 - `amount`: Total payment amount
 - `date`: Date of payment

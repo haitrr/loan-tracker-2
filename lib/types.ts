@@ -42,4 +42,5 @@ export interface LoanSummary {
   numberOfPayments: number;
   actualPaymentsMade?: number;
   totalPrepaymentFees?: number;
+  unpaidAccruedInterest?: number;
 }

@@ -56,7 +56,7 @@ export default function Home() {
       paymentSchedule = recalculateScheduleWithPayments(params, existingPayments);
     }
     
-    const loanSummary = calculateLoanSummary(paymentSchedule);
+    const loanSummary = calculateLoanSummary(paymentSchedule, params, existingPayments);
     
     setSchedule(paymentSchedule);
     setSummary(loanSummary);

@@ -44,6 +44,16 @@ export default function LoanSummaryDashboard({ summary, schedule }: LoanSummaryD
             {summary.remainingBalance < 1 ? 'Fully paid' : 'Outstanding'}
           </p>
         </div>
+
+        {summary.unpaidAccruedInterest !== undefined && summary.unpaidAccruedInterest > 0 && (
+          <div className="bg-linear-to-br from-orange-900 to-orange-800 rounded-lg p-4 border border-orange-700">
+            <h3 className="text-sm font-medium text-gray-300 mb-1">Unpaid Accrued Interest</h3>
+            <p className="text-2xl font-bold text-orange-300">{formatCurrency(summary.unpaidAccruedInterest)}</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Accumulated to today
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
