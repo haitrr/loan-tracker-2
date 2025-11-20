@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     loanId: string;
-  };
+  }>;
 }
 
 export async function GET(
@@ -12,7 +12,7 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
-    const { loanId } = params;
+    const { loanId } = await params;
 
     const payments = await prisma.payment.findMany({
       where: {
@@ -38,7 +38,7 @@ export async function POST(
   { params }: RouteParams
 ) {
   try {
-    const { loanId } = params;
+    const { loanId } = await params;
     const body = await request.json();
     const {
       paymentDate,
