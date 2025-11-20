@@ -6,6 +6,7 @@ export interface LoanParams {
   totalTermMonths: number;
   startDate: Date;
   paymentFrequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
+  prepaymentFeePercentage?: number; // Percentage fee for prepayments (e.g., 2 means 2%)
 }
 
 export interface PaymentScheduleItem {
@@ -18,6 +19,17 @@ export interface PaymentScheduleItem {
   closingBalance: number;
   interestRate: number;
   rateType: 'fixed' | 'floating';
+  actualPayment?: Payment; // Track if this payment was actually made
+}
+
+export interface Payment {
+  id?: string;
+  loanId: string;
+  paymentDate: Date;
+  paymentAmount: number;
+  notes?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface LoanSummary {
@@ -28,4 +40,6 @@ export interface LoanSummary {
   fixedPeriodInterest: number;
   floatingPeriodInterest: number;
   numberOfPayments: number;
+  actualPaymentsMade?: number;
+  totalPrepaymentFees?: number;
 }

@@ -11,15 +11,28 @@ datasource db {
 }
 
 model Loan {
-  id                String   @id @default(cuid())
-  name              String
-  principal         Float
-  fixedRate         Float
-  floatingRate      Float
-  fixedPeriodMonths Int
-  totalTermMonths   Int
-  startDate         DateTime
-  paymentFrequency  String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                     String    @id @default(cuid())
+  name                   String
+  principal              Float
+  fixedRate              Float
+  floatingRate           Float
+  fixedPeriodMonths      Int
+  totalTermMonths        Int
+  startDate              DateTime
+  paymentFrequency       String
+  prepaymentFeePercentage Float    @default(0)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  payments               Payment[]
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  loanId          String
+  loan            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  paymentDate     DateTime
+  paymentAmount   Float
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

@@ -18,6 +18,7 @@ export default function LoanInputForm({ onCalculate, onSave }: LoanInputFormProp
     totalTermMonths: '240',
     startDate: new Date().toISOString().split('T')[0],
     paymentFrequency: 'monthly' as const,
+    prepaymentFeePercentage: '0',
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -32,6 +33,7 @@ export default function LoanInputForm({ onCalculate, onSave }: LoanInputFormProp
       totalTermMonths: parseInt(formData.totalTermMonths),
       startDate: new Date(formData.startDate),
       paymentFrequency: formData.paymentFrequency,
+      prepaymentFeePercentage: parseFloat(formData.prepaymentFeePercentage),
     };
     
     onCalculate(params);
@@ -54,6 +56,7 @@ export default function LoanInputForm({ onCalculate, onSave }: LoanInputFormProp
         totalTermMonths: parseInt(formData.totalTermMonths),
         startDate: new Date(formData.startDate),
         paymentFrequency: formData.paymentFrequency,
+        prepaymentFeePercentage: parseFloat(formData.prepaymentFeePercentage),
       };
       
       if (onSave) {
@@ -213,6 +216,24 @@ export default function LoanInputForm({ onCalculate, onSave }: LoanInputFormProp
             <option value="semi-annual">Semi-Annual</option>
             <option value="annual">Annual</option>
           </select>
+        </div>
+
+        <div>
+          <label htmlFor="prepaymentFeePercentage" className="block text-sm font-medium text-gray-300 mb-2">
+            Prepayment Fee (%)
+          </label>
+          <input
+            type="number"
+            id="prepaymentFeePercentage"
+            name="prepaymentFeePercentage"
+            value={formData.prepaymentFeePercentage}
+            onChange={handleChange}
+            min="0"
+            max="10"
+            step="0.1"
+            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p className="mt-1 text-xs text-gray-400">Fee charged on early principal payments (0 = no fee)</p>
         </div>
       </div>
 

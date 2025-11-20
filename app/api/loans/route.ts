@@ -29,7 +29,8 @@ export async function POST(request: NextRequest) {
       fixedPeriodMonths,
       totalTermMonths,
       startDate,
-      paymentFrequency
+      paymentFrequency,
+      prepaymentFeePercentage
     } = body;
 
     const loan = await prisma.loan.create({
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
         fixedPeriodMonths: parseInt(fixedPeriodMonths),
         totalTermMonths: parseInt(totalTermMonths),
         startDate: new Date(startDate),
-        paymentFrequency
+        paymentFrequency,
+        prepaymentFeePercentage: parseFloat(prepaymentFeePercentage) || 0
       }
     });
 

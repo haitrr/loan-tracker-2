@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import LoanSummaryDashboard from './components/LoanSummaryDashboard';
 import PaymentScheduleTable from './components/PaymentScheduleTable';
-import { LoanParams, PaymentScheduleItem, LoanSummary } from '@/lib/types';
-import { generatePaymentSchedule, calculateLoanSummary } from '@/lib/loanCalculations';
+import AddPaymentForm from './components/AddPaymentForm';
+import PaymentHistory from './components/PaymentHistory';
+import { LoanParams, PaymentScheduleItem, LoanSummary, Payment } from '@/lib/types';
+import { generatePaymentSchedule, calculateLoanSummary, recalculateScheduleWithPayments } from '@/lib/loanCalculations';
 
 interface SavedLoan {
   id: string;
@@ -17,6 +19,7 @@ interface SavedLoan {
   totalTermMonths: number;
   startDate: string;
   paymentFrequency: string;
+  prepaymentFeePercentage: number;
   createdAt: string;
 }
 
@@ -26,6 +29,8 @@ export default function Home() {
   const [summary, setSummary] = useState<LoanSummary | null>(null);
   const [savedLoans, setSavedLoans] = useState<SavedLoan[]>([]);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
+  const [selectedLoan, setSelectedLoan] = useState<SavedLoan | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
     loadSavedLoans();
@@ -43,18 +48,29 @@ export default function Home() {
     }
   };
 
-  const handleCalculate = (params: LoanParams) => {
-    const paymentSchedule = generatePaymentSchedule(params);
+  const handleCalculate = (params: LoanParams, existingPayments: Payment[] = []) => {
+    let paymentSchedule = generatePaymentSchedule(params);
+    
+    // If there are payments, recalculate the schedule with actual payments
+    if (existingPayments.length > 0) {
+      paymentSchedule = recalculateScheduleWithPayments(params, existingPayments);
+    }
+    
     const loanSummary = calculateLoanSummary(paymentSchedule);
     
     setSchedule(paymentSchedule);
     setSummary(loanSummary);
   };
 
-  const handleLoadLoan = (loanId: string) => {
+  const handleLoadLoan = async (loanId: string) => {
     const loan = savedLoans.find(l => l.id === loanId);
     if (loan) {
       setSelectedLoanId(loanId);
+      setSelectedLoan(loan);
+      
+      // Load payments for this loan
+      await loadPayments(loanId);
+      
       const params: LoanParams = {
         principal: loan.principal,
         fixedRate: loan.fixedRate,
@@ -63,8 +79,64 @@ export default function Home() {
         totalTermMonths: loan.totalTermMonths,
         startDate: new Date(loan.startDate),
         paymentFrequency: loan.paymentFrequency as 'monthly' | 'quarterly' | 'semi-annual' | 'annual',
+        prepaymentFeePercentage: loan.prepaymentFeePercentage || 0,
       };
-      handleCalculate(params);
+      
+      // Fetch payments first, then calculate
+      const response = await fetch(`/api/loans/${loanId}/payments`);
+      if (response.ok) {
+        const loanPayments = await response.json();
+        setPayments(loanPayments);
+        handleCalculate(params, loanPayments);
+      } else {
+        handleCalculate(params);
+      }
+    }
+  };
+  
+  const loadPayments = async (loanId: string) => {
+    try {
+      const response = await fetch(`/api/loans/${loanId}/payments`);
+      if (response.ok) {
+        const loanPayments = await response.json();
+        setPayments(loanPayments);
+        return loanPayments;
+      }
+    } catch (error) {
+      console.error('Error loading payments:', error);
+    }
+    return [];
+  };
+  
+  const handlePaymentAdded = async () => {
+    if (selectedLoan) {
+      await handleLoadLoan(selectedLoan.id);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm('Are you sure you want to delete this payment?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/loans/${selectedLoan?.id}/payments?paymentId=${paymentId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        if (selectedLoan) {
+          await handleLoadLoan(selectedLoan.id);
+        }
+      } else {
+        throw new Error('Failed to delete payment');
+      }
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      alert('Failed to delete payment. Please try again.');
     }
   };
 
@@ -165,8 +237,23 @@ export default function Home() {
           </div>
         )}
         
-        {summary && schedule.length > 0 && (
+        {summary && schedule.length > 0 && selectedLoan && (
           <>
+            <AddPaymentForm
+              loanId={selectedLoan.id}
+              schedule={schedule}
+              payments={payments}
+              prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
+              onPaymentAdded={handlePaymentAdded}
+            />
+            {payments.length > 0 && (
+              <PaymentHistory 
+                payments={payments} 
+                schedule={schedule}
+                prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
+                onDeletePayment={handleDeletePayment} 
+              />
+            )}
             <LoanSummaryDashboard summary={summary} schedule={schedule} />
             <PaymentScheduleTable schedule={schedule} />
           </>
