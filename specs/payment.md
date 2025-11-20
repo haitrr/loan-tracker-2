@@ -7,8 +7,7 @@ A payment is an amount of money paid towards a loan.
 When a payment is made, it is applied in the following order:
 
 1. **Interest** - Accrued interest is paid first
-2. **Prepayment Fee** - Any applicable prepayment fees (if applicable)
-3. **Principal** - Remaining amount goes towards principal (scheduled principal + any prepayment amount)
+2. **Principal** - Remaining amount goes towards principal (accuerd scheduled principal + (any prepay amount + prepay fee))
 
 
 ## Properties

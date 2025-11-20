@@ -237,27 +237,42 @@ export default function Home() {
           </div>
         )}
         
-        {summary && schedule.length > 0 && selectedLoan && (
-          <>
-            <AddPaymentForm
-              loanId={selectedLoan.id}
-              schedule={schedule}
-              payments={payments}
-              prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
-              onPaymentAdded={handlePaymentAdded}
-            />
-            {payments.length > 0 && (
-              <PaymentHistory 
-                payments={payments} 
+        {summary && schedule.length > 0 && selectedLoan && (() => {
+          const loanParams: LoanParams = {
+            principal: selectedLoan.principal,
+            fixedRate: selectedLoan.fixedRate,
+            floatingRate: selectedLoan.floatingRate,
+            fixedPeriodMonths: selectedLoan.fixedPeriodMonths,
+            totalTermMonths: selectedLoan.totalTermMonths,
+            startDate: new Date(selectedLoan.startDate),
+            paymentFrequency: selectedLoan.paymentFrequency as 'monthly' | 'quarterly' | 'semi-annual' | 'annual',
+            prepaymentFeePercentage: selectedLoan.prepaymentFeePercentage || 0,
+          };
+          
+          return (
+            <>
+              <AddPaymentForm
+                loanId={selectedLoan.id}
                 schedule={schedule}
+                payments={payments}
                 prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
-                onDeletePayment={handleDeletePayment} 
+                loanParams={loanParams}
+                onPaymentAdded={handlePaymentAdded}
               />
-            )}
-            <LoanSummaryDashboard summary={summary} schedule={schedule} />
-            <PaymentScheduleTable schedule={schedule} />
-          </>
-        )}
+              {payments.length > 0 && (
+                <PaymentHistory 
+                  payments={payments} 
+                  schedule={schedule}
+                  prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
+                  loanParams={loanParams}
+                  onDeletePayment={handleDeletePayment} 
+                />
+              )}
+              <LoanSummaryDashboard summary={summary} schedule={schedule} />
+              <PaymentScheduleTable schedule={schedule} />
+            </>
+          );
+        })()}
 
         {schedule.length === 0 && (
           <div className="bg-gray-800 rounded-lg shadow-lg p-12 text-center">

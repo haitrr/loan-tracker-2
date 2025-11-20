@@ -1,12 +1,13 @@
 'use client';
 
-import { Payment, PaymentScheduleItem } from '@/lib/types';
+import { Payment, PaymentScheduleItem, LoanParams } from '@/lib/types';
 import { formatCurrency, formatDate, enrichPaymentsWithBreakdown } from '@/lib/loanCalculations';
 
 interface PaymentHistoryProps {
   payments: Payment[];
   schedule: PaymentScheduleItem[];
   prepaymentFeePercentage: number;
+  loanParams: LoanParams;
   onDeletePayment?: (paymentId: string) => void;
 }
 
@@ -14,6 +15,7 @@ export default function PaymentHistory({
   payments, 
   schedule, 
   prepaymentFeePercentage,
+  loanParams,
   onDeletePayment 
 }: PaymentHistoryProps) {
   if (payments.length === 0) {
@@ -21,7 +23,7 @@ export default function PaymentHistory({
   }
 
   // Enrich payments with calculated breakdown
-  const enrichedPayments = enrichPaymentsWithBreakdown(payments, schedule, prepaymentFeePercentage);
+  const enrichedPayments = enrichPaymentsWithBreakdown(payments, schedule, prepaymentFeePercentage, loanParams);
 
   const totalPaid = enrichedPayments.reduce((sum, p) => sum + p.paymentAmount, 0);
   const totalPrepaymentFees = enrichedPayments.reduce((sum, p) => sum + p.prepaymentFee, 0);

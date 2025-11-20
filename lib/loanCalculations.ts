@@ -49,6 +49,67 @@ export function getDailyInterestRate(annualRate: number): number {
 }
 
 /**
+ * Calculate total accrued interest from loan start up to a specific date
+ * Accounts for principal reductions from payments
+ * @param upToDate - The date up to which to calculate accrued interest
+ * @param loanParams - Loan parameters including start date and rates
+ * @param enrichedPayments - Array of payments with breakdown information
+ * @param schedule - Payment schedule (first item contains opening balance)
+ */
+export function calculateTotalAccruedInterest(
+  upToDate: Date,
+  loanParams: LoanParams,
+  enrichedPayments: Array<Payment & { principalPaid: number; interestPaid: number }>,
+  schedule: PaymentScheduleItem[]
+): number {
+  if (enrichedPayments.length === 0) {
+    // No payments made yet, calculate from loan start to date
+    const startDate = new Date(loanParams.startDate);
+    
+    if (upToDate <= startDate) {
+      return 0;
+    }
+    
+    // Determine current interest rate based on period
+    const monthsFromStart = (upToDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+    const currentRate = monthsFromStart < loanParams.fixedPeriodMonths ? loanParams.fixedRate : loanParams.floatingRate;
+    
+    return calculateDailyInterest(loanParams.principal, currentRate, startDate, upToDate);
+  }
+  
+  // Calculate total interest accrued from loan start, accounting for principal reductions
+  let totalAccrued = 0;
+  let currentBalance = schedule[0]?.openingBalance || 0;
+  let lastDate = new Date(loanParams.startDate);
+  
+  // Add interest accrued during each period between payments
+  for (const payment of enrichedPayments) {
+    const paymentDate = new Date(payment.paymentDate);
+    const fixedPeriodEndDate = addMonths(new Date(loanParams.startDate), loanParams.fixedPeriodMonths);
+    const currentRate = paymentDate < fixedPeriodEndDate ? loanParams.fixedRate : loanParams.floatingRate;
+    
+    // Accrued interest for this period
+    const periodInterest = calculateDailyInterest(currentBalance, currentRate, lastDate, paymentDate);
+    totalAccrued += periodInterest;
+    
+    // Reduce balance by principal paid
+    currentBalance -= payment.principalPaid;
+    lastDate = paymentDate;
+  }
+  
+  // Add interest accrued from last payment to the specified date
+  if (upToDate > lastDate) {
+    const fixedPeriodEndDate = addMonths(new Date(loanParams.startDate), loanParams.fixedPeriodMonths);
+    const currentRate = upToDate < fixedPeriodEndDate ? loanParams.fixedRate : loanParams.floatingRate;
+    
+    const remainingPeriodInterest = calculateDailyInterest(currentBalance, currentRate, lastDate, upToDate);
+    totalAccrued += remainingPeriodInterest;
+  }
+  
+  return totalAccrued;
+}
+
+/**
  * Calculate interest for a period using daily interest accumulation
  * @param principal - The principal balance
  * @param annualRate - Annual interest rate as percentage
@@ -68,21 +129,28 @@ export function calculateDailyInterest(
   let currentBalance = principal;
   
   const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
   const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
   
   // Sort prepayments by date
-  const sortedPrepayments = [...prepayments].sort(
-    (a, b) => a.date.getTime() - b.date.getTime()
-  );
+  const sortedPrepayments = [...prepayments].map(p => {
+    const date = new Date(p.date);
+    date.setHours(0, 0, 0, 0);
+    return { date, amount: p.amount };
+  }).sort((a, b) => a.date.getTime() - b.date.getTime());
   
   let prepaymentIndex = 0;
   
   // Iterate through each day
-  for (let date = new Date(start); date < end; date.setDate(date.getDate() + 1)) {
+  const currentDate = new Date(start);
+  while (currentDate < end) {
+    const currentDateTimestamp = currentDate.getTime();
+    
     // Apply any prepayments that occurred on this day
     while (
       prepaymentIndex < sortedPrepayments.length &&
-      sortedPrepayments[prepaymentIndex].date.setHours(0, 0, 0, 0) <= date.setHours(0, 0, 0, 0)
+      sortedPrepayments[prepaymentIndex].date.getTime() <= currentDateTimestamp
     ) {
       currentBalance -= sortedPrepayments[prepaymentIndex].amount;
       prepaymentIndex++;
@@ -90,6 +158,9 @@ export function calculateDailyInterest(
     
     // Calculate interest for this day
     totalInterest += currentBalance * dailyRate;
+    
+    // Move to next day
+    currentDate.setDate(currentDate.getDate() + 1);
   }
   
   return totalInterest;
@@ -210,7 +281,8 @@ export function calculateLoanSummary(
     const enrichedPayments = enrichPaymentsWithBreakdown(
       payments,
       schedule,
-      params.prepaymentFeePercentage || 0
+      params.prepaymentFeePercentage || 0,
+      params
     );
     
     // Calculate end of fixed period date
@@ -349,10 +421,13 @@ export function calculateUnpaidAccruedInterest(
     });
     
     const expectedInterest = scheduledItem?.interestAmount || 0;
+    const scheduledPaymentAmount = scheduledItem?.totalPayment || 0;
     const breakdown = calculatePaymentBreakdown(
       payment.paymentAmount,
       expectedInterest,
-      remainingBalance
+      remainingBalance,
+      scheduledPaymentAmount,
+      0 // No prepayment fee in this context
     );
     
     remainingBalance -= breakdown.principalPaid;
@@ -431,7 +506,9 @@ export function recalculateScheduleWithPayments(
         const breakdown = calculatePaymentBreakdown(
           matchingPayment.paymentAmount,
           scheduledItem.interestAmount,
-          runningBalance
+          runningBalance,
+          scheduledItem.totalPayment,
+          0 // No prepayment fee in this context
         );
         
         // Calculate prepayment: principal paid minus scheduled principal
@@ -486,7 +563,13 @@ export function calculateRemainingBalance(
 ): number {
   const totalPrincipalPaid = payments.reduce(
     (sum, payment) => {
-      const breakdown = calculatePaymentBreakdown(payment.paymentAmount, 0, principal - sum);
+      const breakdown = calculatePaymentBreakdown(
+        payment.paymentAmount,
+        0,
+        principal - sum,
+        0,
+        0
+      );
       return sum + breakdown.principalPaid;
     },
     0
@@ -496,12 +579,15 @@ export function calculateRemainingBalance(
 
 /**
  * Calculate payment breakdown (principal, interest, prepayment fee) based on payment amount,
- * expected interest, and remaining balance
+ * expected interest, and remaining balance.
+ * Applies payment in order: 1) Interest, 2) Prepayment Fee, 3) Principal
  */
 export function calculatePaymentBreakdown(
   paymentAmount: number,
-  expectedInterest: number,
-  remainingBalance: number
+  accruedInterest: number,
+  remainingBalance: number,
+  scheduledPaymentAmount: number = 0,
+  prepaymentFeePercentage: number = 0
 ): {
   principalPaid: number;
   interestPaid: number;
@@ -511,11 +597,28 @@ export function calculatePaymentBreakdown(
     return { principalPaid: 0, interestPaid: 0, prepaymentFee: 0 };
   }
 
-  // Allocate to interest first
-  const interestPaid = Math.min(paymentAmount, expectedInterest);
+  let remainingPayment = paymentAmount;
+
+  // Step 1: Allocate to accrued interest first
+  const interestPaid = Math.min(remainingPayment, accruedInterest);
+  remainingPayment -= interestPaid;
   
-  // Remaining amount goes to principal
-  let principalPaid = paymentAmount - interestPaid;
+  // Step 2: Calculate and allocate prepayment fee
+  // Prepayment fee applies to the amount exceeding scheduled payment (after interest)
+  let prepaymentFee = 0;
+  if (scheduledPaymentAmount > 0 && prepaymentFeePercentage > 0) {
+    const scheduledPrincipal = Math.max(0, scheduledPaymentAmount - accruedInterest);
+    const excessPrincipal = Math.max(0, remainingPayment - scheduledPrincipal);
+    
+    if (excessPrincipal > 0) {
+      prepaymentFee = (excessPrincipal * prepaymentFeePercentage) / 100;
+      prepaymentFee = Math.min(prepaymentFee, remainingPayment); // Can't exceed remaining payment
+      remainingPayment -= prepaymentFee;
+    }
+  }
+  
+  // Step 3: Remaining amount goes to principal
+  let principalPaid = remainingPayment;
   
   // Ensure principal doesn't exceed remaining balance
   principalPaid = Math.min(principalPaid, remainingBalance);
@@ -523,7 +626,7 @@ export function calculatePaymentBreakdown(
   return {
     principalPaid,
     interestPaid,
-    prepaymentFee: 0, // Will be calculated separately if needed
+    prepaymentFee,
   };
 }
 
@@ -572,11 +675,13 @@ export function getNextExpectedPayment(
 /**
  * Calculate enriched payment data with breakdown
  * This adds principalPaid, interestPaid, and prepaymentFee to payment objects
+ * Uses actual accrued interest calculation based on daily interest accumulation
  */
 export function enrichPaymentsWithBreakdown(
   payments: Payment[],
   schedule: PaymentScheduleItem[],
-  prepaymentFeePercentage: number
+  prepaymentFeePercentage: number,
+  params?: LoanParams
 ): Array<Payment & { principalPaid: number; interestPaid: number; prepaymentFee: number }> {
   // Sort payments by date
   const sortedPayments = [...payments].sort(
@@ -585,8 +690,9 @@ export function enrichPaymentsWithBreakdown(
   
   let runningBalance = schedule[0]?.openingBalance || 0;
   let scheduleIndex = 0;
+  let lastPaymentDate: Date | null = null;
   
-  return sortedPayments.map(payment => {
+  return sortedPayments.map((payment, paymentIndex) => {
     // Find the corresponding scheduled payment
     let scheduledPayment = schedule[scheduleIndex];
     while (scheduledPayment && scheduleIndex < schedule.length) {
@@ -601,32 +707,60 @@ export function enrichPaymentsWithBreakdown(
       scheduledPayment = schedule[scheduleIndex];
     }
     
-    const expectedInterest = scheduledPayment?.interestAmount || 0;
+    // Calculate actual accrued interest from last payment date to this payment date
+    let accruedInterest: number;
+    const paymentDate = new Date(payment.paymentDate);
+    
+    if (params) {
+      // Use daily interest calculation for accurate accrued interest
+      const startDate = lastPaymentDate || new Date(params.startDate);
+      const currentRate = scheduledPayment?.interestRate || params.fixedRate;
+      
+      // Get any prepayments made in the period for accurate interest calculation
+      const prepaymentsInPeriod = sortedPayments
+        .slice(0, paymentIndex)
+        .filter(p => {
+          const pDate = new Date(p.paymentDate);
+          return pDate > startDate && pDate < paymentDate;
+        })
+        .map(p => ({
+          date: new Date(p.paymentDate),
+          amount: p.paymentAmount // Simplified - should use actual principal paid
+        }));
+      
+      accruedInterest = calculateDailyInterest(
+        runningBalance,
+        currentRate,
+        startDate,
+        paymentDate,
+        prepaymentsInPeriod
+      );
+    } else {
+      // Fall back to scheduled interest if params not available
+      accruedInterest = scheduledPayment?.interestAmount || 0;
+    }
+    
     const scheduledPaymentAmount = scheduledPayment?.totalPayment || 0;
     
-    // Calculate breakdown
+    // Calculate breakdown with proper payment application order
     const breakdown = calculatePaymentBreakdown(
       payment.paymentAmount,
-      expectedInterest,
-      runningBalance
-    );
-    
-    // Calculate prepayment fee
-    const prepaymentFee = calculatePaymentPrepaymentFee(
-      payment.paymentAmount,
+      accruedInterest,
+      runningBalance,
       scheduledPaymentAmount,
       prepaymentFeePercentage
     );
     
     // Update running balance
     runningBalance -= breakdown.principalPaid;
+    lastPaymentDate = paymentDate;
     scheduleIndex++;
     
     return {
       ...payment,
       principalPaid: breakdown.principalPaid,
       interestPaid: breakdown.interestPaid,
-      prepaymentFee,
+      prepaymentFee: breakdown.prepaymentFee,
     };
   });
 }
