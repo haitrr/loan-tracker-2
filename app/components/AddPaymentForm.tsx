@@ -41,9 +41,9 @@ export default function AddPaymentForm({
   const [showForm, setShowForm] = useState(false);
   
   // Calculate remaining principal balance and unpaid interest
-  const enrichedPayments = enrichPaymentsWithBreakdown(payments, schedule, prepaymentFeePercentage, loanParams);
+  const enrichedPayments = enrichPaymentsWithBreakdown(payments, prepaymentFeePercentage, loanParams);
   const totalPrincipalPaid = enrichedPayments.reduce((sum, p) => sum + p.principalPaid, 0);
-  const remainingBalance = schedule[0]?.openingBalance - totalPrincipalPaid || 0;
+  const remainingBalance = loanParams.principal - totalPrincipalPaid || 0;
   
   // Calculate unpaid interest: total accrued - total interest paid
   const totalInterestPaid = enrichedPayments.reduce((sum, p) => sum + p.interestPaid, 0);
@@ -64,16 +64,11 @@ export default function AddPaymentForm({
       return;
     }
 
-    // Calculate the scheduled payment amount (interest + normal principal payment)
-    // For prepayment fee calculation purposes only
-    const scheduledPaymentAmount = accruedInterest;
-    
     // Calculate breakdown using the utility function
     const breakdown = calculatePaymentBreakdown(
       amount,
       accruedInterest,
       remainingBalance,
-      scheduledPaymentAmount,
       prepaymentFeePercentage
     );
     

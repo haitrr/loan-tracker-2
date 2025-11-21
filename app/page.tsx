@@ -262,7 +262,6 @@ export default function Home() {
               {payments.length > 0 && (
                 <PaymentHistory 
                   payments={payments} 
-                  schedule={schedule}
                   prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
                   loanParams={loanParams}
                   onDeletePayment={handleDeletePayment} 

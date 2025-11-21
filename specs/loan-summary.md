@@ -19,16 +19,16 @@ The Loan Summary provides a comprehensive financial overview of a fixed-to-float
 
 ```typescript
 interface LoanSummary {
-  totalInterestPaid: number;        // Total interest paid across all payments
-  totalPrincipalPaid: number;       // Total principal paid across all payments
-  totalAmountPaid: number;          // Sum of interest and principal paid
-  remainingBalance: number;         // Outstanding principal balance
-  fixedPeriodInterest: number;      // Interest paid during fixed rate period
-  floatingPeriodInterest: number;   // Interest paid during floating rate period
-  numberOfPayments: number;         // Total number of scheduled payments
-  actualPaymentsMade?: number;      // Number of actual payments made (optional)
-  totalPrepaymentFees?: number;     // Total fees paid for prepayments (optional)
-  unpaidAccruedInterest?: number;   // Interest accrued but not yet paid (optional)
+  totalInterestPaid: number; // Total interest paid across all payments
+  totalPrincipalPaid: number; // Total principal paid across all payments
+  totalAmountPaid: number; // Sum of interest and principal paid
+  remainingBalance: number; // Outstanding principal balance
+  fixedPeriodInterest: number; // Interest paid during fixed rate period
+  floatingPeriodInterest: number; // Interest paid during floating rate period
+  numberOfPayments: number; // Total number of scheduled payments
+  actualPaymentsMade?: number; // Number of actual payments made (optional)
+  totalPrepaymentFees?: number; // Total fees paid for prepayments (optional)
+  unpaidAccruedInterest?: number; // Interest accrued but not yet paid (optional)
 }
 ```
 
@@ -71,6 +71,7 @@ remainingBalance = principal - totalPrincipalPaid
 ```
 
 **Calculation:**
+
 1. Start with original principal
 2. Subtract total principal paid from all actual payments
 3. Ensure balance is not negative (minimum 0)
@@ -86,6 +87,7 @@ fixedPeriodInterest = Σ(interestPaid for each actual payment where payment date
 ```
 
 **Calculation:**
+
 1. Find actual payments made during fixed period (before `fixedPeriodMonths` from start date)
 2. Sum the `interestPaid` from those payments
 
@@ -98,10 +100,12 @@ floatingPeriodInterest = Σ(interestPaid for each actual payment where payment d
 ```
 
 **Calculation:**
+
 1. Find actual payments made during floating period (after `fixedPeriodMonths` from start date)
 2. Sum the `interestPaid` from those payments
 
 **Validation:**
+
 ```
 fixedPeriodInterest + floatingPeriodInterest = totalInterestPaid
 ```
@@ -114,52 +118,28 @@ Total count of scheduled payment items:
 numberOfPayments = schedule.length
 ```
 
-### 8. Unpaid Accrued Interest (Optional)
+### 8. Unpaid Accrued Interest
 
-Interest that has accumulated from the last payment date to today but hasn't been paid yet. This is calculated using daily interest accumulation.
+Total unpaid interest accured of the loan.
 
 #### Calculation Steps:
 
-1. **If no payments made:**
-   - Calculate from loan start date to today
-   - Use principal as the balance
-   - Use current interest rate (fixed or floating based on period)
+1. Calculate the sum of daily interest since the start of the loan.
+2. Substract by the total interest paid to date.
 
-2. **If payments have been made:**
-   - Find the last payment date
-   - Calculate remaining balance after all payments
-   - Find the next scheduled payment to determine the current rate
-   - Calculate daily interest from last payment date to today (or next scheduled date, whichever is earlier)
+Unpaid Accrued Interest Formula:
+
+```unpaidAccruedInterest = totalAccruedInterest - totalInterestPaid
+totalAccruedInterest = Σ(dailyInterest for each day since the start of the loan up to today)
+```
 
 #### Daily Interest Formula:
 
 ```
-dailyInterestRate = annualRate / 100 / 365
-dailyInterest = balance × dailyInterestRate
-unpaidAccruedInterest = Σ(dailyInterest for each day from lastPaymentDate to today)
-```
-
-**Special Cases:**
-- If last payment date ≥ today: `unpaidAccruedInterest = 0`
-- If remaining balance ≤ 0: `unpaidAccruedInterest = 0`
-- If no more scheduled payments exist: `unpaidAccruedInterest = 0`
-
-#### With Prepayments:
-
-When prepayments are made during the accrual period, the balance changes mid-period:
-
-```typescript
-// For each day in the period:
-for (day from lastPaymentDate to today) {
-  // Apply any prepayments on this day
-  if (prepayment on this day) {
-    balance -= prepaymentAmount
-  }
-  
-  // Calculate interest for this day
-  dailyInterest = balance × dailyInterestRate
-  totalInterest += dailyInterest
-}
+anualInterestRate = (current interest rate based on fixed/floating period)
+dailyInterestRate = (annualInterestRate / 100) / 365
+remainingPricipal_of_the_day = principal - totalPrincipalPaid up to that day
+dailyInterest = remainingPricipal_of_the_day × dailyInterestRate
 ```
 
 ## Display Format
@@ -169,22 +149,26 @@ The loan summary is typically displayed in a dashboard format with the following
 ### Primary Metrics (Card Grid)
 
 1. **Total Amount Paid**
+
    - Value: `formatCurrency(totalAmountPaid)`
    - Subtitle: "Principal + Interest"
    - Color: Blue theme
 
 2. **Total Principal Paid**
+
    - Value: `formatCurrency(totalPrincipalPaid)`
    - Subtitle: "{numberOfPayments} payments"
    - Color: Green theme
 
 3. **Total Interest Paid**
+
    - Value: `formatCurrency(totalInterestPaid)`
    - Subtitle: "{percentage}% of principal"
    - Color: Red theme
    - Percentage calculation: `(totalInterestPaid / totalPrincipalPaid) × 100`
 
 4. **Remaining Balance**
+
    - Value: `formatCurrency(remainingBalance)`
    - Subtitle: "Fully paid" or "Outstanding"
    - Color: Purple theme
@@ -198,6 +182,7 @@ The loan summary is typically displayed in a dashboard format with the following
 ### Period Breakdown (Two Column Layout)
 
 1. **Fixed Rate Period**
+
    - Number of Payments: count of payments with `rateType === 'fixed'`
    - Interest Paid: `formatCurrency(fixedPeriodInterest)`
 
@@ -215,7 +200,10 @@ A horizontal bar chart showing the proportion of interest paid in each period:
 ## Usage Example
 
 ```typescript
-import { calculateLoanSummary, generatePaymentSchedule } from '@/lib/loanCalculations';
+import {
+  calculateLoanSummary,
+  generatePaymentSchedule,
+} from "@/lib/loanCalculations";
 
 const params: LoanParams = {
   principal: 100000,
@@ -223,8 +211,8 @@ const params: LoanParams = {
   floatingRate: 6.5,
   fixedPeriodMonths: 60,
   totalTermMonths: 240,
-  startDate: new Date('2024-01-01'),
-  paymentFrequency: 'monthly'
+  startDate: new Date("2024-01-01"),
+  paymentFrequency: "monthly",
 };
 
 // Generate schedule
@@ -236,7 +224,9 @@ const summary = calculateLoanSummary(schedule, params, payments);
 // Display summary
 console.log(`Total Interest: ${formatCurrency(summary.totalInterestPaid)}`);
 console.log(`Remaining Balance: ${formatCurrency(summary.remainingBalance)}`);
-console.log(`Unpaid Accrued: ${formatCurrency(summary.unpaidAccruedInterest || 0)}`);
+console.log(
+  `Unpaid Accrued: ${formatCurrency(summary.unpaidAccruedInterest || 0)}`
+);
 ```
 
 ## Business Rules
@@ -251,20 +241,24 @@ console.log(`Unpaid Accrued: ${formatCurrency(summary.unpaidAccruedInterest || 0
 ## Edge Cases
 
 ### Loan Not Yet Started
+
 - If `startDate > today`: All values should be 0 or initial amounts
 - No unpaid accrued interest
 
 ### Loan Fully Paid
+
 - `remainingBalance` should be 0 or < 0.01
 - `unpaidAccruedInterest` should be 0
 - All scheduled payments should have matching actual payments
 
 ### No Payments Made
+
 - `totalInterestPaid` and `totalPrincipalPaid` from schedule show what is expected
 - `unpaidAccruedInterest` shows interest from start date to today
 - `remainingBalance` equals original principal
 
 ### Prepayments Made
+
 - Principal paid faster than scheduled
 - Future scheduled payments may show as "covered" by prepayments
 - Interest is recalculated on lower balances going forward

@@ -27,7 +27,7 @@ async function main() {
     {
       id: "69080e46-5aab-4162-9795-eb4fc3ccf383",
       loanId: loanId,
-      paymentDate: new Date("2025-11-20"),
+      paymentDate: new Date("2025-11-19"),
       paymentAmount: 50_000_000,
     },
   ];
