@@ -87,6 +87,18 @@ async function main() {
       paymentAmount: 10_100_000,
     },
     {
+      id: "79080f46-5aab-4132-9795-eb4fc3ccf383",
+      loanId: loanId,
+      paymentDate: new Date("2024-04-05"),
+      paymentAmount: 12_120_000,
+    },
+    {
+      id: "89080f46-5aab-4132-9795-eb4fc3ccf383",
+      loanId: loanId,
+      paymentDate: new Date("2024-04-19"),
+      paymentAmount: 10_100_000,
+    },
+    {
       id: "69090e46-5aab-4162-9795-eb4fc3ccf383",
       loanId: loanId,
       paymentDate: new Date("2025-11-10"),

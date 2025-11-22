@@ -55,7 +55,8 @@ export async function calculateTotalAccruedInterestFromDB(
   const enrichedPayments = enrichPaymentsWithBreakdown(
     loan.payments.map((p) => ({ ...p, notes: p.notes || undefined })),
     loan.prepaymentFeePercentage,
-    loanParams
+    loanParams,
+    schedule
   );
 
   return calculateTotalAccruedInterest(upToDate, loanParams, enrichedPayments, schedule);
