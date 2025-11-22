@@ -556,6 +556,7 @@ export function enrichPaymentsWithBreakdownUpTo(
   let payableInterest = 0;
   let accuredInterestThisSchedule = 0
   const currentDate = new Date(params.startDate);
+  currentDate.setDate(currentDate.getDate() + 1);
   const enrichedPayments: EnrichedPayment[] = [];
 
   while (currentDate <= upToDate) {
@@ -567,6 +568,12 @@ export function enrichPaymentsWithBreakdownUpTo(
       const scheduledDate = new Date(s.scheduledDate);
       return scheduledDate.getTime() === currentDate.getTime();
     });
+    const annualInterestRate = currentDate < addMonths(new Date(params.startDate), params.fixedPeriodMonths)
+      ? params.fixedRate
+      : params.floatingRate;
+    const dailyInterestRate = (annualInterestRate / 100) / 365;
+    const dayInterest = (params.principal - enrichedPayments.reduce((sum, p) => sum + (p.principalPaid || 0), 0)) * dailyInterestRate;
+    accuredInterestThisSchedule += dayInterest;
 
     if (scheduledPaymentToDay) {
       // Calculate payable interest up to this scheduled date
@@ -575,12 +582,6 @@ export function enrichPaymentsWithBreakdownUpTo(
       // Add scheduled principal
       payablePrincipal += scheduledPaymentToDay.scheduledPrincipalAmount;
     }
-    const annualInterestRate = currentDate < addMonths(new Date(params.startDate), params.fixedPeriodMonths)
-      ? params.fixedRate
-      : params.floatingRate;
-    const dailyInterestRate = (annualInterestRate / 100) / 365;
-    const dayInterest = (params.principal - enrichedPayments.reduce((sum, p) => sum + (p.principalPaid || 0), 0)) * dailyInterestRate;
-    accuredInterestThisSchedule += dayInterest;
 
 
     if (paymentsToDay.length > 0) {
