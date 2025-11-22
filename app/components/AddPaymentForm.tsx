@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Payment, PaymentScheduleItem, LoanParams } from '@/lib/types';
+import { Payment, ScheduledPayment, LoanParams } from '@/lib/types';
 import { 
   formatCurrency,
   enrichPaymentsWithBreakdown,
@@ -11,16 +11,13 @@ import {
 
 interface AddPaymentFormProps {
   loanId: string;
-  schedule: PaymentScheduleItem[];
   payments: Payment[];
   prepaymentFeePercentage: number;
   loanParams: LoanParams;
   onPaymentAdded: () => void;
 }
-
 export default function AddPaymentForm({
   loanId,
-  schedule,
   payments,
   prepaymentFeePercentage,
   loanParams,
@@ -48,7 +45,7 @@ export default function AddPaymentForm({
   // Calculate unpaid interest: total accrued - total interest paid
   const totalInterestPaid = enrichedPayments.reduce((sum, p) => sum + p.interestPaid, 0);
   const paymentDate = new Date(formData.paymentDate);
-  const totalAccruedInterest = calculateTotalAccruedInterest(paymentDate, loanParams, enrichedPayments, schedule);
+  const totalAccruedInterest = calculateTotalAccruedInterest(paymentDate, loanParams, enrichedPayments);
   const accruedInterest = totalAccruedInterest - totalInterestPaid;
 
   const calculatePaymentBreakdownLocal = () => {

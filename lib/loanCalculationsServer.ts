@@ -7,7 +7,6 @@ import { prisma } from './prisma';
 import {
   calculateTotalAccruedInterest,
   calculateLoanSummary,
-  generatePaymentSchedule,
   enrichPaymentsWithBreakdown,
 } from './loanCalculations';
 import { LoanParams, LoanSummary } from './types';
@@ -25,7 +24,10 @@ export async function calculateTotalAccruedInterestFromDB(
   // Query loan and payments from database
   const loan = await prisma.loan.findUnique({
     where: { id: loanId },
-    include: { payments: true },
+    include: { 
+      payments: true,
+      scheduledPayments: true,
+    },
   });
 
   if (!loan) {
@@ -48,18 +50,14 @@ export async function calculateTotalAccruedInterestFromDB(
     prepaymentFeePercentage: loan.prepaymentFeePercentage,
   };
 
-  // Generate schedule
-  const schedule = generatePaymentSchedule(loanParams);
-
   // Enrich payments with breakdown
   const enrichedPayments = enrichPaymentsWithBreakdown(
     loan.payments.map((p) => ({ ...p, notes: p.notes || undefined })),
     loan.prepaymentFeePercentage,
-    loanParams,
-    schedule
+    loanParams
   );
 
-  return calculateTotalAccruedInterest(upToDate, loanParams, enrichedPayments, schedule);
+  return calculateTotalAccruedInterest(upToDate, loanParams, enrichedPayments);
 }
 
 /**
@@ -71,7 +69,10 @@ export async function calculateLoanSummaryFromDB(loanId: string): Promise<LoanSu
   // Query loan and payments from database
   const loan = await prisma.loan.findUnique({
     where: { id: loanId },
-    include: { payments: true },
+    include: { 
+      payments: true,
+      scheduledPayments: true,
+    },
   });
 
   if (!loan) {
@@ -94,11 +95,15 @@ export async function calculateLoanSummaryFromDB(loanId: string): Promise<LoanSu
     prepaymentFeePercentage: loan.prepaymentFeePercentage,
   };
 
-  // Generate schedule
-  const schedule = generatePaymentSchedule(params);
+  // Convert scheduled payments
+  const scheduledPayments = loan.scheduledPayments.map((sp) => ({
+    ...sp,
+    scheduledDate: sp.scheduledDate,
+    scheduledPrincipalAmount: sp.scheduledPrincipalAmount,
+  }));
 
   // Convert payments
   const payments = loan.payments.map((p) => ({ ...p, notes: p.notes || undefined }));
 
-  return calculateLoanSummary(schedule, params, payments);
+  return calculateLoanSummary(scheduledPayments, params, payments);
 }

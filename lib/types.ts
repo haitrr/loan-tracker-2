@@ -11,20 +11,6 @@ export interface LoanParams {
   prepaymentFeePercentage?: number; // Percentage fee for prepayments (e.g., 2 means 2%)
 }
 
-export interface PaymentScheduleItem {
-  paymentNumber: number;
-  paymentDate: Date;
-  openingBalance: number;
-  interestAmount: number;
-  principalAmount: number;
-  totalPayment: number;
-  closingBalance: number;
-  interestRate: number;
-  rateType: 'fixed' | 'floating';
-  actualPayment?: Payment; // Track if this payment was actually made
-  status?: PaymentStatus; // Payment status
-}
-
 export interface Payment {
   id?: string;
   loanId: string;

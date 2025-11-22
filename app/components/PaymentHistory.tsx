@@ -66,6 +66,7 @@ export default function PaymentHistory({
               <th className="px-4 py-3 text-right font-semibold text-gray-200">Amount</th>
               <th className="px-4 py-3 text-right font-semibold text-gray-200">Principal</th>
               <th className="px-4 py-3 text-right font-semibold text-gray-200">Interest</th>
+              <th className="px-4 py-3 text-right font-semibold text-gray-200">Prepay Fee</th>
               <th className="px-4 py-3 text-center font-semibold text-gray-200">Type</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-200">Notes</th>
               {onDeletePayment && (
@@ -86,17 +87,15 @@ export default function PaymentHistory({
                   </td>
                   <td className="px-4 py-3 text-right text-gray-100 font-semibold">
                     {formatCurrency(payment.paymentAmount)}
-                    {payment.prepaymentFee > 0 && (
-                      <div className="text-xs text-yellow-400">
-                        +{formatCurrency(payment.prepaymentFee)} fee
-                      </div>
-                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-green-400">
                     {formatCurrency(payment.principalPaid)}
                   </td>
                   <td className="px-4 py-3 text-right text-red-400">
                     {formatCurrency(payment.interestPaid)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-yellow-400">
+                    {payment.prepaymentFee > 0 ? formatCurrency(payment.prepaymentFee) : '-'}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span

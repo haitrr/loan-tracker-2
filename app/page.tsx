@@ -6,8 +6,8 @@ import LoanSummaryDashboard from './components/LoanSummaryDashboard';
 import PaymentScheduleTable from './components/PaymentScheduleTable';
 import AddPaymentForm from './components/AddPaymentForm';
 import PaymentHistory from './components/PaymentHistory';
-import { LoanParams, PaymentScheduleItem, LoanSummary, Payment, ScheduledPayment } from '@/lib/types';
-import { generatePaymentSchedule, calculateLoanSummary, recalculateScheduleWithPayments } from '@/lib/loanCalculations';
+import { LoanParams, LoanSummary, Payment, ScheduledPayment } from '@/lib/types';
+import { calculateLoanSummary } from '@/lib/loanCalculations';
 
 interface SavedLoan {
   id: string;
@@ -25,7 +25,7 @@ interface SavedLoan {
 
 export default function Home() {
   const router = useRouter();
-  const [schedule, setSchedule] = useState<PaymentScheduleItem[]>([]);
+  const [schedule, setSchedule] = useState<ScheduledPayment[]>([]);
   const [summary, setSummary] = useState<LoanSummary | null>(null);
   const [savedLoans, setSavedLoans] = useState<SavedLoan[]>([]);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
@@ -49,17 +49,10 @@ export default function Home() {
     }
   };
 
-  const handleCalculate = (params: LoanParams, existingPayments: Payment[] = []) => {
-    let paymentSchedule = generatePaymentSchedule(params);
+  const handleCalculate = (params: LoanParams, existingPayments: Payment[] = [], scheduledPayments: ScheduledPayment[] = []) => {
+    const loanSummary = calculateLoanSummary(scheduledPayments, params, existingPayments);
     
-    // If there are payments, recalculate the schedule with actual payments
-    if (existingPayments.length > 0) {
-      paymentSchedule = recalculateScheduleWithPayments(params, existingPayments);
-    }
-    
-    const loanSummary = calculateLoanSummary(paymentSchedule, params, existingPayments);
-    
-    setSchedule(paymentSchedule);
+    setSchedule(scheduledPayments);
     setSummary(loanSummary);
   };
 
@@ -68,12 +61,6 @@ export default function Home() {
     if (loan) {
       setSelectedLoanId(loanId);
       setSelectedLoan(loan);
-      
-      // Load payments for this loan
-      await loadPayments(loanId);
-      
-      // Load scheduled payments for this loan
-      await loadScheduledPayments(loanId);
       
       const params: LoanParams = {
         principal: loan.principal,
@@ -86,15 +73,11 @@ export default function Home() {
         prepaymentFeePercentage: loan.prepaymentFeePercentage || 0,
       };
       
-      // Fetch payments first, then calculate
-      const response = await fetch(`/api/loans/${loanId}/payments`);
-      if (response.ok) {
-        const loanPayments = await response.json();
-        setPayments(loanPayments);
-        handleCalculate(params, loanPayments);
-      } else {
-        handleCalculate(params);
-      }
+      // Fetch payments and scheduled payments
+      const loanPayments = await loadPayments(loanId);
+      const scheduled = await loadScheduledPayments(loanId);
+      
+      handleCalculate(params, loanPayments, scheduled);
     }
   };
   
@@ -271,7 +254,6 @@ export default function Home() {
             <>
               <AddPaymentForm
                 loanId={selectedLoan.id}
-                schedule={schedule}
                 payments={payments}
                 prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
                 loanParams={loanParams}

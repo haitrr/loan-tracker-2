@@ -1,5 +1,4 @@
-import { LoanParams, PaymentScheduleItem, LoanSummary, Payment, PaymentStatus } from './types';
-
+import { LoanParams, LoanSummary, Payment, ScheduledPayment } from './types';
 /**
  * Get the number of payments per year based on frequency
  */
@@ -54,13 +53,11 @@ export function getDailyInterestRate(annualRate: number): number {
  * @param upToDate - The date up to which to calculate accrued interest
  * @param loanParams - Loan parameters including start date and rates
  * @param enrichedPayments - Array of payments with breakdown information
- * @param schedule - Payment schedule (first item contains opening balance)
  */
 export function calculateTotalAccruedInterest(
   upToDate: Date,
   loanParams: LoanParams,
-  enrichedPayments: Array<Payment & { principalPaid: number; interestPaid: number }>,
-  schedule: PaymentScheduleItem[]
+  enrichedPayments: Array<Payment & { principalPaid: number; interestPaid: number }>
 ): number {
   if (enrichedPayments.length === 0) {
     // No payments made yet, calculate from loan start to date
@@ -79,7 +76,7 @@ export function calculateTotalAccruedInterest(
   
   // Calculate total interest accrued from loan start, accounting for principal reductions
   let totalAccrued = 0;
-  let currentBalance = schedule[0]?.openingBalance || 0;
+  let currentBalance = loanParams.principal;
   let lastDate = new Date(loanParams.startDate);
   
   // Add interest accrued during each period between payments
@@ -115,14 +112,14 @@ export function calculateTotalAccruedInterest(
  * @param annualRate - Annual interest rate as percentage
  * @param startDate - Start date of the period
  * @param endDate - End date of the period
- * @param prepayments - Array of prepayments made during the period with {date, amount}
+ * @param payments - Array of payments made during the period with {date, amount}
  */
 export function calculateDailyInterest(
   principal: number,
   annualRate: number,
   startDate: Date,
   endDate: Date,
-  prepayments: Array<{date: Date, amount: number}> = []
+  payments: Array<{date: Date, amount: number}> = []
 ): number {
   const dailyRate = getDailyInterestRate(annualRate);
   let totalInterest = 0;
@@ -133,27 +130,26 @@ export function calculateDailyInterest(
   const end = new Date(endDate);
   end.setHours(0, 0, 0, 0);
   
-  // Sort prepayments by date
-  const sortedPrepayments = [...prepayments].map(p => {
+  const sortedPayments = [...payments].map(p => {
     const date = new Date(p.date);
     date.setHours(0, 0, 0, 0);
     return { date, amount: p.amount };
   }).sort((a, b) => a.date.getTime() - b.date.getTime());
   
-  let prepaymentIndex = 0;
+  let payment = 0;
   
   // Iterate through each day
   const currentDate = new Date(start);
   while (currentDate < end) {
     const currentDateTimestamp = currentDate.getTime();
     
-    // Apply any prepayments that occurred on this day
+    // Apply any payments that occurred on this day
     while (
-      prepaymentIndex < sortedPrepayments.length &&
-      sortedPrepayments[prepaymentIndex].date.getTime() <= currentDateTimestamp
+      payment < sortedPayments.length &&
+      sortedPayments[payment].date.getTime() <= currentDateTimestamp
     ) {
-      currentBalance -= sortedPrepayments[prepaymentIndex].amount;
-      prepaymentIndex++;
+      currentBalance -= sortedPayments[payment].amount;
+      payment++;
     }
     
     // Calculate interest for this day
@@ -187,86 +183,10 @@ export function calculateEMI(
 }
 
 /**
- * Generate complete payment schedule for a fixed-to-floating rate loan
- */
-export function generatePaymentSchedule(params: LoanParams): PaymentScheduleItem[] {
-  const schedule: PaymentScheduleItem[] = [];
-  const paymentsPerYear = getPaymentsPerYear(params.paymentFrequency);
-  const monthsBetweenPayments = getMonthsBetweenPayments(params.paymentFrequency);
-  
-  // Calculate total number of payments
-  const totalPayments = Math.ceil(params.totalTermMonths / monthsBetweenPayments);
-  
-  // Calculate when the rate switches from fixed to floating
-  const fixedPeriodPayments = Math.floor(params.fixedPeriodMonths / monthsBetweenPayments);
-  
-  let currentBalance = params.principal;
-  let currentDate = new Date(params.startDate);
-  
-  // Calculate EMI for fixed period
-  const fixedPeriodicRate = getPeriodicRate(params.fixedRate, paymentsPerYear);
-  const fixedEMI = calculateEMI(params.principal, fixedPeriodicRate, totalPayments);
-  
-  for (let i = 0; i < totalPayments && currentBalance > 0.01; i++) {
-    const isFixedPeriod = i < fixedPeriodPayments;
-    const currentRate = isFixedPeriod ? params.fixedRate : params.floatingRate;
-    const periodicRate = getPeriodicRate(currentRate, paymentsPerYear);
-    
-    // For floating period, recalculate EMI with remaining balance and payments
-    let emi: number;
-    if (isFixedPeriod) {
-      emi = fixedEMI;
-    } else {
-      // Recalculate EMI at the start of floating period
-      if (i === fixedPeriodPayments) {
-        const remainingPayments = totalPayments - i;
-        emi = calculateEMI(currentBalance, periodicRate, remainingPayments);
-      } else {
-        // Use the EMI calculated at the start of floating period
-        const remainingPayments = totalPayments - fixedPeriodPayments;
-        const balanceAtFloatingStart = schedule[fixedPeriodPayments - 1]?.closingBalance || currentBalance;
-        emi = calculateEMI(balanceAtFloatingStart, periodicRate, remainingPayments);
-      }
-    }
-    
-    // Calculate interest for this period
-    const interestAmount = currentBalance * periodicRate;
-    
-    // Calculate principal payment
-    let principalAmount = emi - interestAmount;
-    
-    // Adjust for final payment
-    if (principalAmount > currentBalance) {
-      principalAmount = currentBalance;
-    }
-    
-    const totalPayment = interestAmount + principalAmount;
-    const closingBalance = currentBalance - principalAmount;
-    
-    schedule.push({
-      paymentNumber: i + 1,
-      paymentDate: new Date(currentDate),
-      openingBalance: currentBalance,
-      interestAmount,
-      principalAmount,
-      totalPayment,
-      closingBalance: Math.max(0, closingBalance),
-      interestRate: currentRate,
-      rateType: isFixedPeriod ? 'fixed' : 'floating',
-    });
-    
-    currentBalance = closingBalance;
-    currentDate = addMonths(currentDate, monthsBetweenPayments);
-  }
-  
-  return schedule;
-}
-
-/**
  * Calculate loan summary statistics based on ACTUAL payments from database
  */
 export function calculateLoanSummary(
-  schedule: PaymentScheduleItem[],
+  schedule: ScheduledPayment[],
   params: LoanParams,
   payments: Payment[]
 ): LoanSummary {
@@ -308,7 +228,7 @@ export function calculateLoanSummary(
   const remainingBalance = Math.max(0, params.principal - totalPrincipalPaid);
   
   // Calculate unpaid accrued interest up to today
-  const unpaidAccruedInterest = calculateUnpaidInterestUpToDate(toDay, params, enrichedPayments, schedule);
+  const unpaidAccruedInterest = calculatePayableInterestUpTo(toDay, params, enrichedPayments, schedule);
   
   return {
     totalInterestPaid,
@@ -362,185 +282,6 @@ export function calculatePrepaymentFee(
   feePercentage: number
 ): number {
   return (prepaymentAmount * feePercentage) / 100;
-}
-
-/**
- * Calculate payment status for each scheduled payment
- * Logic:
- * - "paid": All interest and principal of all prior payments and itself are paid
- * - "outstanding": Any interest or principal from prior payments or itself is unpaid
- * - "partial-paid": For future payments where part or all of principal is prepaid
- * - "pending": Future payment with no payments made
- */
-export function calculatePaymentStatus(
-  scheduleItem: PaymentScheduleItem,
-  allScheduleItems: PaymentScheduleItem[],
-  enrichedPayments: Array<Payment & { principalPaid: number; interestPaid: number }>
-): PaymentStatus {
-  const itemIndex = allScheduleItems.findIndex(s => s.paymentNumber === scheduleItem.paymentNumber);
-  const today = new Date();
-  const scheduleDate = new Date(scheduleItem.paymentDate);
-  const isFuturePayment = scheduleDate > today;
-  
-  // Get all payments up to this scheduled payment
-  const paymentsUpToThis = enrichedPayments.filter(p => {
-    return new Date(p.paymentDate) <= scheduleDate;
-  });
-  
-  // Calculate total interest and principal expected up to this payment
-  let totalExpectedInterest = 0;
-  let totalExpectedPrincipal = 0;
-  
-  for (let i = 0; i <= itemIndex; i++) {
-    totalExpectedInterest += allScheduleItems[i].interestAmount;
-    totalExpectedPrincipal += allScheduleItems[i].principalAmount;
-  }
-  
-  // Calculate total interest and principal actually paid
-  let totalPaidInterest = 0;
-  let totalPaidPrincipal = 0;
-  
-  paymentsUpToThis.forEach(p => {
-    totalPaidInterest += p.interestPaid;
-    totalPaidPrincipal += p.principalPaid;
-  });
-  
-  // Check if all interest and principal are paid
-  const interestFullyPaid = totalPaidInterest >= totalExpectedInterest - 0.01; // Allow small rounding errors
-  const principalFullyPaid = totalPaidPrincipal >= totalExpectedPrincipal - 0.01;
-  
-  if (interestFullyPaid && principalFullyPaid) {
-    return 'paid';
-  }
-  
-  // For future payments, check if partial principal is paid
-  if (isFuturePayment) {
-    // Check if any principal for this specific payment is prepaid
-    const principalPaidForThis = totalPaidPrincipal - (allScheduleItems
-      .slice(0, itemIndex)
-      .reduce((sum, s) => sum + s.principalAmount, 0));
-    
-    if (principalPaidForThis > 0.01) {
-      return 'partial-paid';
-    }
-    
-    return 'pending';
-  }
-  
-  // Past or current payment that is not fully paid
-  return 'outstanding';
-}
-
-/**
- * Recalculate payment schedule after payments have been made
- * This adjusts the schedule based on actual payments and recalculates from the current position
- */
-export function recalculateScheduleWithPayments(
-  params: LoanParams,
-  payments: Payment[]
-): PaymentScheduleItem[] {
-  // Generate original schedule
-  const originalSchedule = generatePaymentSchedule(params);
-  
-  if (payments.length === 0) {
-    return originalSchedule.map(item => ({
-      ...item,
-      status: 'pending' as PaymentStatus
-    }));
-  }
-  
-  // Sort payments by date
-  const sortedPayments = [...payments].sort(
-    (a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()
-  );
-  
-  // Enrich payments with breakdown
-  const enrichedPayments = enrichPaymentsWithBreakdown(
-    sortedPayments,
-    params.prepaymentFeePercentage || 0,
-    params,
-    originalSchedule
-  );
-  
-  // Calculate total prepayment amount (excluding scheduled principal)
-  let totalPrepayment = 0;
-  let paymentIndex = 0;
-  let runningBalance = params.principal;
-  
-  const adjustedSchedule: PaymentScheduleItem[] = [];
-  
-  for (let i = 0; i < originalSchedule.length; i++) {
-    const scheduledItem = originalSchedule[i];
-    const matchingPayment = sortedPayments[paymentIndex];
-    
-    // Check if this scheduled payment has a matching actual payment
-    let actualPayment: Payment | undefined;
-    if (matchingPayment && paymentIndex < sortedPayments.length) {
-      const scheduleDate = new Date(scheduledItem.paymentDate).setHours(0, 0, 0, 0);
-      const paymentDate = new Date(matchingPayment.paymentDate).setHours(0, 0, 0, 0);
-      
-      // Allow some flexibility in date matching (within 7 days)
-      const daysDiff = Math.abs(scheduleDate - paymentDate) / (1000 * 60 * 60 * 24);
-      
-      if (daysDiff <= 7) {
-        actualPayment = matchingPayment;
-        paymentIndex++;
-        
-        // Calculate principal paid from payment amount
-        const breakdown = calculatePaymentBreakdown(
-          matchingPayment.paymentAmount,
-          scheduledItem.interestAmount,
-          runningBalance,
-          0 // No prepayment fee in this context
-        );
-        
-        // Calculate prepayment: principal paid minus scheduled principal
-        const scheduledPrincipal = scheduledItem.principalAmount;
-        const actualPrincipal = breakdown.principalPaid;
-        const prepaymentAmount = Math.max(0, actualPrincipal - scheduledPrincipal);
-        totalPrepayment += prepaymentAmount;
-        
-        // Update running balance
-        runningBalance -= breakdown.principalPaid;
-      }
-    }
-    
-    // Adjust scheduled principal based on accumulated prepayments
-    let adjustedPrincipal = scheduledItem.principalAmount;
-    if (totalPrepayment > 0) {
-      if (totalPrepayment >= scheduledItem.principalAmount) {
-        // All principal for this payment covered by prepayment
-        totalPrepayment -= scheduledItem.principalAmount;
-        adjustedPrincipal = 0;
-      } else {
-        // Partial coverage
-        adjustedPrincipal = scheduledItem.principalAmount - totalPrepayment;
-        totalPrepayment = 0;
-      }
-    }
-    
-    const adjustedTotal = scheduledItem.interestAmount + adjustedPrincipal;
-    
-    adjustedSchedule.push({
-      ...scheduledItem,
-      principalAmount: adjustedPrincipal,
-      totalPayment: adjustedTotal,
-      actualPayment,
-    });
-    
-    // If all future principals are 0, loan is paid off
-    if (adjustedPrincipal === 0 && totalPrepayment === 0 && actualPayment) {
-      break;
-    }
-  }
-  
-  // Calculate statuses for all schedule items
-  const scheduleWithStatus = adjustedSchedule.map((item) => ({
-    ...item,
-    status: calculatePaymentStatus(item, adjustedSchedule, enrichedPayments)
-  }));
-  
-  return scheduleWithStatus;
 }
 
 /**
@@ -637,32 +378,6 @@ export function calculatePaymentPrepaymentFee(
 }
 
 /**
- * Get the next expected payment details based on current schedule and payments
- */
-export function getNextExpectedPayment(
-  schedule: PaymentScheduleItem[],
-  payments: Payment[]
-): PaymentScheduleItem | null {
-  const scheduleWithPayments = schedule.map(item => {
-    const matchingPayment = payments.find(payment => {
-      const scheduleDate = new Date(item.paymentDate).setHours(0, 0, 0, 0);
-      const paymentDate = new Date(payment.paymentDate).setHours(0, 0, 0, 0);
-      const daysDiff = Math.abs(scheduleDate - paymentDate) / (1000 * 60 * 60 * 24);
-      return daysDiff <= 7;
-    });
-    
-    return {
-      ...item,
-      actualPayment: matchingPayment,
-    };
-  });
-  
-  // Find first unpaid scheduled payment
-  const nextPayment = scheduleWithPayments.find(item => !item.actualPayment);
-  return nextPayment || null;
-}
-
-/**
  * Calculate enriched payment data with breakdown
  * This adds principalPaid, interestPaid, and prepaymentFee to payment objects
  * Uses payable interest calculation based on scheduled payment dates
@@ -671,15 +386,12 @@ export function enrichPaymentsWithBreakdown(
   payments: Payment[],
   prepaymentFeePercentage: number,
   params: LoanParams,
-  schedule: PaymentScheduleItem[] = []
+  schedule: ScheduledPayment[] = []
 ): Array<Payment & { principalPaid: number; interestPaid: number; prepaymentFee: number }> {
   // Sort payments by date
   const sortedPayments = [...payments].sort(
     (a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()
   );
-
-  // Generate schedule if not provided
-  const paymentSchedule = schedule.length > 0 ? schedule : generatePaymentSchedule(params);
 
   const enrichedPayments: Array<Payment & { principalPaid: number; interestPaid: number; prepaymentFee: number }> = [];
   
@@ -701,7 +413,7 @@ export function enrichPaymentsWithBreakdown(
       paymentDate,
       params,
       enrichedPayments,
-      paymentSchedule
+      schedule
     );
     
     console.log(`Payable interest at payment date: ${payableInterest.toFixed(2)}`);
@@ -743,12 +455,9 @@ export function calculatePayableInterestUpToDate(
   upToDate: Date,
   loanParams: LoanParams,
   enrichedPayments: Array<Payment & { principalPaid: number; interestPaid: number }>,
-  schedule: PaymentScheduleItem[] = []
+  schedule: ScheduledPayment[] = []
 ): number {
   console.log(`\nCalculating payable interest up to ${upToDate.toISOString().split('T')[0]}`);
-  
-  // If no schedule provided, generate it
-  const paymentSchedule = schedule.length > 0 ? schedule : generatePaymentSchedule(loanParams);
   
   // Calculate total interest that has become payable (reached scheduled payment dates)
   let totalPayableInterest = 0;
@@ -764,8 +473,8 @@ export function calculatePayableInterestUpToDate(
   let paymentIndex = 0;
   
   // Process each scheduled payment date that has passed
-  for (const scheduleItem of paymentSchedule) {
-    const scheduledDate = new Date(scheduleItem.paymentDate);
+  for (const scheduleItem of schedule) {
+    const scheduledDate = new Date(scheduleItem.scheduledDate);
     
     // Only process scheduled dates up to upToDate
     if (scheduledDate > upToDate) {
@@ -827,22 +536,19 @@ export function calculatePayableInterestUpToDate(
  * @param schedule - Payment schedule items to determine when interest becomes due
  * @returns The unpaid accrued interest amount
  */
-export function calculateUnpaidInterestUpToDate(
+export function calculatePayableInterestUpTo(
   upToDate: Date,
   loanParams: LoanParams,
   payments: Payment[],
-  schedule: PaymentScheduleItem[] = []
+  schedule: ScheduledPayment[] = []
 ): number {
   console.log(`\nCalculating unpaid accrued interest up to `, upToDate);
   
-  // If no schedule provided, generate it
-  const paymentSchedule = schedule.length > 0 ? schedule : generatePaymentSchedule(loanParams);
-  
   // Find the last scheduled payment date that has passed (on or before upToDate)
-  const scheduledDates = paymentSchedule
-    .map(s => new Date(s.paymentDate))
-    .filter(date => date <= upToDate)
-    .sort((a, b) => b.getTime() - a.getTime()); // Sort descending
+  const scheduledDates = schedule
+    .map((s: ScheduledPayment) => new Date(s.scheduledDate))
+    .filter((date: Date) => date <= upToDate)
+    .sort((a: Date, b: Date) => b.getTime() - a.getTime()); // Sort descending
   
   const lastScheduledDate = scheduledDates.length > 0 
     ? scheduledDates[0] 
