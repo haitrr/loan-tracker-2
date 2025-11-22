@@ -9,6 +9,7 @@ export interface LoanParams {
   startDate: Date;
   paymentFrequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
   prepaymentFeePercentage?: number; // Percentage fee for prepayments (e.g., 2 means 2%)
+  id: string;
 }
 
 export interface Payment {
@@ -19,12 +20,22 @@ export interface Payment {
   notes?: string;
   createdAt?: Date;
   updatedAt?: Date;
-  // Enriched fields (calculated)
-  principalPaid?: number;
-  interestPaid?: number;
-  prepaymentFee?: number;
-  isPrepayment?: boolean;
+  type: PaymentType;
 }
+
+export enum PaymentType {
+  MANUAL = 'MANUAL',
+  INTEREST_COLLECTION = 'INTEREST_COLLECTION',
+}
+
+export type EnrichedPaymentInfo = {
+  principalPaid: number;
+  interestPaid: number;
+  prepaymentFee: number;
+  prepaymentAmount: number;
+}
+
+export type EnrichedPayment = Payment & EnrichedPaymentInfo;
 
 export interface ScheduledPayment {
   id: string;

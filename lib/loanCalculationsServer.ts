@@ -7,7 +7,7 @@ import { prisma } from './prisma';
 import {
   calculateTotalAccruedInterest,
   calculateLoanSummary,
-  enrichPaymentsWithBreakdown,
+  enrichPaymentsWithBreakdownUpTo,
 } from './loanCalculations';
 import { LoanParams, LoanSummary } from './types';
 
@@ -36,6 +36,7 @@ export async function calculateTotalAccruedInterestFromDB(
 
   // Convert loan to LoanParams
   const loanParams: LoanParams = {
+    id: loan.id,
     principal: loan.principal,
     fixedRate: loan.fixedRate,
     floatingRate: loan.floatingRate,
@@ -51,10 +52,15 @@ export async function calculateTotalAccruedInterestFromDB(
   };
 
   // Enrich payments with breakdown
-  const enrichedPayments = enrichPaymentsWithBreakdown(
+  const enrichedPayments = enrichPaymentsWithBreakdownUpTo(
+    new Date(),
     loan.payments.map((p) => ({ ...p, notes: p.notes || undefined })),
-    loan.prepaymentFeePercentage,
-    loanParams
+    loanParams,
+    loan.scheduledPayments.map((sp) => ({
+      ...sp,
+      scheduledDate: sp.scheduledDate,
+      scheduledPrincipalAmount: sp.scheduledPrincipalAmount,
+    }))
   );
 
   return calculateTotalAccruedInterest(upToDate, loanParams, enrichedPayments);

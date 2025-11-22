@@ -10,9 +10,9 @@ function generateScheduledPayments(
   totalTermMonths: number,
   paymentFrequency: string
 ) {
-  const paymentsPerYear = paymentFrequency === 'monthly' ? 12 : 
-                          paymentFrequency === 'quarterly' ? 4 :
-                          paymentFrequency === 'semi-annual' ? 2 : 1;
+  const paymentsPerYear = paymentFrequency === 'monthly' ? 12 :
+    paymentFrequency === 'quarterly' ? 4 :
+      paymentFrequency === 'semi-annual' ? 2 : 1;
   const monthsBetweenPayments = 12 / paymentsPerYear;
   const totalPayments = Math.ceil((totalTermMonths / 12) * paymentsPerYear);
   const scheduledPrincipalAmount = principal / totalPayments;
@@ -50,6 +50,7 @@ async function main() {
     totalTermMonths: 360,
     startDate: new Date("2024-01-26"),
     paymentFrequency: "monthly",
+    prepaymentFeePercentage: 1.0
   };
 
   // Generate scheduled payments
@@ -79,6 +80,13 @@ async function main() {
       loanId: loanId,
       paymentDate: new Date("2024-02-02"),
       paymentAmount: 12_120_000,
+    },
+    {
+      id: "29080e46-5aab-4162-9795-eb4fc3ccf383",
+      loanId: loanId,
+      paymentDate: new Date("2024-02-27"),
+      paymentAmount: 0,
+      type: "INTEREST_COLLECTION",
     },
     {
       id: "69080e46-5aab-4162-9795-eb4fc3ccf383",

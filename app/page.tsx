@@ -63,6 +63,7 @@ export default function Home() {
       setSelectedLoan(loan);
       
       const params: LoanParams = {
+        id: loan.id,
         principal: loan.principal,
         fixedRate: loan.fixedRate,
         floatingRate: loan.floatingRate,
@@ -240,6 +241,7 @@ export default function Home() {
         
         {summary && schedule.length > 0 && selectedLoan && (() => {
           const loanParams: LoanParams = {
+            id: selectedLoan.id,
             principal: selectedLoan.principal,
             fixedRate: selectedLoan.fixedRate,
             floatingRate: selectedLoan.floatingRate,
@@ -257,13 +259,14 @@ export default function Home() {
                 payments={payments}
                 prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
                 loanParams={loanParams}
+                scheduledPayments={scheduledPayments}
                 onPaymentAdded={handlePaymentAdded}
               />
               {payments.length > 0 && (
                 <PaymentHistory 
                   payments={payments} 
-                  prepaymentFeePercentage={selectedLoan.prepaymentFeePercentage || 0}
                   loanParams={loanParams}
+                  scheduledPayments={scheduledPayments}
                   onDeletePayment={handleDeletePayment} 
                 />
               )}

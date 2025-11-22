@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Payment, ScheduledPayment, LoanParams } from '@/lib/types';
+import { Payment, LoanParams, ScheduledPayment } from '@/lib/types';
 import { 
   formatCurrency,
-  enrichPaymentsWithBreakdown,
   calculatePaymentBreakdown,
-  calculateTotalAccruedInterest
+  calculateTotalAccruedInterest,
+  enrichPaymentsWithBreakdownUpTo
 } from '@/lib/loanCalculations';
 
 interface AddPaymentFormProps {
@@ -14,6 +14,7 @@ interface AddPaymentFormProps {
   payments: Payment[];
   prepaymentFeePercentage: number;
   loanParams: LoanParams;
+  scheduledPayments: ScheduledPayment[];
   onPaymentAdded: () => void;
 }
 export default function AddPaymentForm({
@@ -21,6 +22,7 @@ export default function AddPaymentForm({
   payments,
   prepaymentFeePercentage,
   loanParams,
+  scheduledPayments,
   onPaymentAdded,
 }: AddPaymentFormProps) {
   const [formData, setFormData] = useState({
@@ -38,7 +40,7 @@ export default function AddPaymentForm({
   const [showForm, setShowForm] = useState(false);
   
   // Calculate remaining principal balance and unpaid interest
-  const enrichedPayments = enrichPaymentsWithBreakdown(payments, prepaymentFeePercentage, loanParams);
+  const enrichedPayments = enrichPaymentsWithBreakdownUpTo(new Date(), payments, loanParams, scheduledPayments);
   const totalPrincipalPaid = enrichedPayments.reduce((sum, p) => sum + p.principalPaid, 0);
   const remainingBalance = loanParams.principal - totalPrincipalPaid || 0;
   
