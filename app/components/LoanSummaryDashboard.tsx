@@ -22,6 +22,7 @@ export default function LoanSummaryDashboard({
     sp => new Date(sp.scheduledDate) > new Date()
   );
   const nextScheduledPayment = upcomingPayments.length > 0 ? upcomingPayments[0] : null;
+  console.log('Scheduled Payments:', summary.totalInterestPaid, summary.scheduledTotalInterest, summary.totalPrepaymentFees);
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
@@ -70,21 +71,21 @@ export default function LoanSummaryDashboard({
 
         {summary.scheduledTotalInterest !== undefined && summary.scheduledTotalInterest > 0 && (
           <div className={`bg-linear-to-br rounded-lg p-4 border ${
-            summary.totalInterestPaid < summary.scheduledTotalInterest
+            summary.totalInterestPaid + (summary.totalPrepaymentFees || 0) < summary.scheduledTotalInterest
               ? 'from-cyan-900 to-cyan-800 border-cyan-700'
               : 'from-amber-900 to-amber-800 border-amber-700'
           }`}>
             <h3 className="text-sm font-medium text-gray-300 mb-1">Interest vs Schedule</h3>
             <p className={`text-2xl font-bold ${
-              summary.totalInterestPaid < summary.scheduledTotalInterest
+              summary.totalInterestPaid + (summary.totalPrepaymentFees || 0) < summary.scheduledTotalInterest
                 ? 'text-cyan-300'
                 : 'text-amber-300'
             }`}>
-              {summary.totalInterestPaid < summary.scheduledTotalInterest ? '-' : '+'}
-              {formatCurrency(Math.abs(summary.totalInterestPaid - summary.scheduledTotalInterest))}
+              {summary.totalInterestPaid + (summary.totalPrepaymentFees || 0) < summary.scheduledTotalInterest ? '-' : '+'}
+              {formatCurrency(Math.abs(summary.totalInterestPaid - summary.scheduledTotalInterest + (summary.totalPrepaymentFees || 0)))}
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              {summary.totalInterestPaid < summary.scheduledTotalInterest
+              {summary.totalInterestPaid + (summary.totalPrepaymentFees || 0) < summary.scheduledTotalInterest
                 ? 'Saved by early payments'
                 : 'Extra from late payments'}
             </p>

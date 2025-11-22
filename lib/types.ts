@@ -56,8 +56,8 @@ export interface LoanSummary {
   floatingPeriodInterest: number;
   numberOfPayments: number;
   actualPaymentsMade?: number;
-  totalPrepaymentFees?: number;
+  totalPrepaymentFees: number;
   unpaidAccruedInterest?: number;
-  scheduledTotalInterest?: number; // Total interest if following payment schedule exactly
+  scheduledTotalInterest: number; // Total interest if following payment schedule exactly
 }
 

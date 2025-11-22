@@ -244,6 +244,7 @@ export function calculateLoanSummary(
     actualPaymentsMade: payments.length,
     unpaidAccruedInterest,
     scheduledTotalInterest,
+    totalPrepaymentFees: enrichedPayments.reduce((sum, p) => sum + p.prepaymentFee, 0),
   };
 }
 
