@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 
 async function main() {
   console.log("Seeding database...");
+  // clean up db
+  await prisma.payment.deleteMany();
+  await prisma.loan.deleteMany();
 
   const loanId = "69080e46-5aab-4162-9795-eb4fc3ccf383";
   const loanData = {
@@ -13,7 +16,7 @@ async function main() {
     floatingRate: 7.5,
     fixedPeriodMonths: 24,
     totalTermMonths: 360,
-    startDate: new Date("2024-02-26"),
+    startDate: new Date("2024-01-26"),
     paymentFrequency: "monthly",
   };
 
@@ -27,8 +30,26 @@ async function main() {
     {
       id: "69080e46-5aab-4162-9795-eb4fc3ccf383",
       loanId: loanId,
-      paymentDate: new Date("2025-11-19"),
-      paymentAmount: 50_000_000,
+      paymentDate: new Date("2024-02-28"),
+      paymentAmount: 12_120_000,
+    },
+    {
+      id: "69080f46-5aab-4132-9795-eb4fc3ccf383",
+      loanId: loanId,
+      paymentDate: new Date("2024-03-24"),
+      paymentAmount: 10_100_000,
+    },
+    {
+      id: "69090e46-5aab-4162-9795-eb4fc3ccf383",
+      loanId: loanId,
+      paymentDate: new Date("2025-11-10"),
+      paymentAmount: 50_500_000,
+    },
+    {
+      id: "69080f46-5aab-4162-9795-eb4fc3ccf383",
+      loanId: loanId,
+      paymentDate: new Date("2025-11-20"),
+      paymentAmount: 50_500_000,
     },
   ];
 
