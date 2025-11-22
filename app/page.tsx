@@ -6,7 +6,7 @@ import LoanSummaryDashboard from './components/LoanSummaryDashboard';
 import PaymentScheduleTable from './components/PaymentScheduleTable';
 import AddPaymentForm from './components/AddPaymentForm';
 import PaymentHistory from './components/PaymentHistory';
-import { LoanParams, PaymentScheduleItem, LoanSummary, Payment } from '@/lib/types';
+import { LoanParams, PaymentScheduleItem, LoanSummary, Payment, ScheduledPayment } from '@/lib/types';
 import { generatePaymentSchedule, calculateLoanSummary, recalculateScheduleWithPayments } from '@/lib/loanCalculations';
 
 interface SavedLoan {
@@ -31,6 +31,7 @@ export default function Home() {
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<SavedLoan | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [scheduledPayments, setScheduledPayments] = useState<ScheduledPayment[]>([]);
 
   useEffect(() => {
     loadSavedLoans();
@@ -71,6 +72,9 @@ export default function Home() {
       // Load payments for this loan
       await loadPayments(loanId);
       
+      // Load scheduled payments for this loan
+      await loadScheduledPayments(loanId);
+      
       const params: LoanParams = {
         principal: loan.principal,
         fixedRate: loan.fixedRate,
@@ -104,6 +108,20 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error loading payments:', error);
+    }
+    return [];
+  };
+
+  const loadScheduledPayments = async (loanId: string) => {
+    try {
+      const response = await fetch(`/api/loans/${loanId}/scheduled-payments`);
+      if (response.ok) {
+        const scheduled = await response.json();
+        setScheduledPayments(scheduled);
+        return scheduled;
+      }
+    } catch (error) {
+      console.error('Error loading scheduled payments:', error);
     }
     return [];
   };
@@ -267,7 +285,10 @@ export default function Home() {
                   onDeletePayment={handleDeletePayment} 
                 />
               )}
-              <LoanSummaryDashboard summary={summary} schedule={schedule} />
+              <LoanSummaryDashboard 
+                summary={summary} 
+                scheduledPayments={scheduledPayments}
+              />
               <PaymentScheduleTable schedule={schedule} />
             </>
           );

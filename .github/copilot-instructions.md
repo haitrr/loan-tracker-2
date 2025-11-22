@@ -1,0 +1,1 @@
+- Use server actions instead of API unless explicitly told to use API.

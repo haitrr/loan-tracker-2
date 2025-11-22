@@ -40,6 +40,16 @@ export interface Payment {
   isPrepayment?: boolean;
 }
 
+export interface ScheduledPayment {
+  id: string;
+  loanId: string;
+  paymentNumber: number;
+  scheduledDate: Date;
+  scheduledPrincipalAmount: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface LoanSummary {
   totalInterestPaid: number;
   totalPrincipalPaid: number;
@@ -52,3 +62,4 @@ export interface LoanSummary {
   totalPrepaymentFees?: number;
   unpaidAccruedInterest?: number;
 }
+

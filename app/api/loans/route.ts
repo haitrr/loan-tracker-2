@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getMonthsBetweenPayments, addMonths, getPaymentsPerYear } from '@/lib/loanCalculations';
 
 export async function GET() {
   try {
@@ -18,6 +19,35 @@ export async function GET() {
   }
 }
 
+/**
+ * Generate scheduled payments based on loan parameters
+ */
+function generateScheduledPayments(
+  principal: number,
+  startDate: Date,
+  totalTermMonths: number,
+  paymentFrequency: string
+) {
+  const monthsBetweenPayments = getMonthsBetweenPayments(paymentFrequency);
+  const paymentsPerYear = getPaymentsPerYear(paymentFrequency);
+  const totalPayments = Math.ceil((totalTermMonths / 12) * paymentsPerYear);
+  const scheduledPrincipalAmount = principal / totalPayments;
+
+  const scheduledPayments = [];
+  let currentDate = addMonths(startDate, monthsBetweenPayments);
+
+  for (let i = 1; i <= totalPayments; i++) {
+    scheduledPayments.push({
+      paymentNumber: i,
+      scheduledDate: new Date(currentDate),
+      scheduledPrincipalAmount: scheduledPrincipalAmount,
+    });
+    currentDate = addMonths(currentDate, monthsBetweenPayments);
+  }
+
+  return scheduledPayments;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -33,17 +63,36 @@ export async function POST(request: NextRequest) {
       prepaymentFeePercentage
     } = body;
 
+    const parsedPrincipal = parseFloat(principal);
+    const parsedStartDate = new Date(startDate);
+    const parsedTotalTermMonths = parseInt(totalTermMonths);
+
+    // Generate scheduled payments
+    const scheduledPayments = generateScheduledPayments(
+      parsedPrincipal,
+      parsedStartDate,
+      parsedTotalTermMonths,
+      paymentFrequency
+    );
+
+    // Create loan with scheduled payments in a transaction
     const loan = await prisma.loan.create({
       data: {
         name,
-        principal: parseFloat(principal),
+        principal: parsedPrincipal,
         fixedRate: parseFloat(fixedRate),
         floatingRate: parseFloat(floatingRate),
         fixedPeriodMonths: parseInt(fixedPeriodMonths),
-        totalTermMonths: parseInt(totalTermMonths),
-        startDate: new Date(startDate),
+        totalTermMonths: parsedTotalTermMonths,
+        startDate: parsedStartDate,
         paymentFrequency,
-        prepaymentFeePercentage: parseFloat(prepaymentFeePercentage) || 0
+        prepaymentFeePercentage: parseFloat(prepaymentFeePercentage) || 0,
+        scheduledPayments: {
+          create: scheduledPayments
+        }
+      },
+      include: {
+        scheduledPayments: true
       }
     });
 

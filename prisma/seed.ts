@@ -1,9 +1,41 @@
 import "dotenv/config";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * Generate scheduled payments based on loan parameters
+ */
+function generateScheduledPayments(
+  principal: number,
+  startDate: Date,
+  totalTermMonths: number,
+  paymentFrequency: string
+) {
+  const paymentsPerYear = paymentFrequency === 'monthly' ? 12 : 
+                          paymentFrequency === 'quarterly' ? 4 :
+                          paymentFrequency === 'semi-annual' ? 2 : 1;
+  const monthsBetweenPayments = 12 / paymentsPerYear;
+  const totalPayments = Math.ceil((totalTermMonths / 12) * paymentsPerYear);
+  const scheduledPrincipalAmount = principal / totalPayments;
+
+  const scheduledPayments = [];
+  const currentDate = new Date(startDate);
+
+  for (let i = 1; i <= totalPayments; i++) {
+    currentDate.setMonth(currentDate.getMonth() + monthsBetweenPayments);
+    scheduledPayments.push({
+      paymentNumber: i,
+      scheduledDate: new Date(currentDate),
+      scheduledPrincipalAmount: scheduledPrincipalAmount,
+    });
+  }
+
+  return scheduledPayments;
+}
+
 async function main() {
   console.log("Seeding database...");
   // clean up db
+  await prisma.scheduledPayment.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.loan.deleteMany();
 
@@ -20,11 +52,26 @@ async function main() {
     paymentFrequency: "monthly",
   };
 
+  // Generate scheduled payments
+  const scheduledPayments = generateScheduledPayments(
+    loanData.principal,
+    loanData.startDate,
+    loanData.totalTermMonths,
+    loanData.paymentFrequency
+  );
+
   const loan = await prisma.loan.upsert({
     where: { id: loanId },
     update: loanData,
-    create: loanData,
+    create: {
+      ...loanData,
+      scheduledPayments: {
+        create: scheduledPayments
+      }
+    },
   });
+
+  console.log(`Created loan with ${scheduledPayments.length} scheduled payments`);
 
   const paymentsData = [
     {
