@@ -58,5 +58,6 @@ export interface LoanSummary {
   actualPaymentsMade?: number;
   totalPrepaymentFees?: number;
   unpaidAccruedInterest?: number;
+  scheduledTotalInterest?: number; // Total interest if following payment schedule exactly
 }
 

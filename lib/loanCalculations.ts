@@ -230,6 +230,9 @@ export function calculateLoanSummary(
   // Calculate unpaid accrued interest up to today
   const unpaidAccruedInterest = calculatePayableInterestUpTo(toDay, params, enrichedPayments, schedule);
 
+  // Calculate total interest that would be paid if following schedule exactly
+  const scheduledTotalInterest = calculateScheduledInterest(new Date(),params, schedule);
+
   return {
     totalInterestPaid,
     totalPrincipalPaid,
@@ -240,6 +243,7 @@ export function calculateLoanSummary(
     numberOfPayments: schedule.length,
     actualPaymentsMade: payments.length,
     unpaidAccruedInterest,
+    scheduledTotalInterest,
   };
 }
 
@@ -396,7 +400,6 @@ export function calculatePayableInterestUpToDate(
   enrichedPayments: EnrichedPayment[],
   schedule: ScheduledPayment[] = []
 ): number {
-  console.log(`\nCalculating payable interest up to ${upToDate.toISOString().split('T')[0]}`);
 
   // Calculate total interest that has become payable (reached scheduled payment dates)
   let totalPayableInterest = 0;
@@ -447,7 +450,6 @@ export function calculatePayableInterestUpToDate(
     }
 
     totalPayableInterest += periodInterest;
-    console.log(`Interest became payable on ${scheduledDate.toISOString().split('T')[0]}: ${periodInterest.toFixed(2)}`);
 
     lastDate = scheduledDate;
   }
@@ -456,7 +458,6 @@ export function calculatePayableInterestUpToDate(
   const totalInterestPaid = enrichedPayments.reduce((sum, p) => sum + p.interestPaid, 0);
   const unpaidPayableInterest = totalPayableInterest - totalInterestPaid;
 
-  console.log(`Total payable interest: ${totalPayableInterest.toFixed(2)}, Paid: ${totalInterestPaid.toFixed(2)}, Unpaid: ${unpaidPayableInterest.toFixed(2)}`);
 
   return Math.max(0, unpaidPayableInterest);
 }
@@ -481,7 +482,6 @@ export function calculatePayableInterestUpTo(
   payments: EnrichedPayment[],
   schedule: ScheduledPayment[] = []
 ): number {
-  console.log(`\nCalculating unpaid accrued interest up to `, upToDate);
 
   // Find the last scheduled payment date that has passed (on or before upToDate)
   const scheduledDates = schedule
@@ -493,7 +493,6 @@ export function calculatePayableInterestUpTo(
     ? scheduledDates[0]
     : new Date(loanParams.startDate);
 
-  console.log(`Last scheduled date on or before ${upToDate.toISOString().split('T')[0]}: ${lastScheduledDate.toISOString().split('T')[0]}`);
 
   // If upToDate is on or before the last scheduled date, no unpaid accrued interest
   // (all accrued interest up to that point became payable)
@@ -513,7 +512,6 @@ export function calculatePayableInterestUpTo(
   );
   const remainingPrincipal = loanParams.principal - totalPrincipalPaidByLastScheduled;
 
-  console.log(`Remaining principal at last scheduled date: ${remainingPrincipal.toFixed(2)}`);
 
   // Calculate accrued interest from lastScheduledDate to upToDate
   // Interest accrues daily on the remaining principal
@@ -540,7 +538,6 @@ export function calculatePayableInterestUpTo(
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  console.log(`Accrued unpaid interest from ${lastScheduledDate.toISOString().split('T')[0]} to ${upToDate.toISOString().split('T')[0]}: ${accruedInterest.toFixed(2)}`);
 
   return accruedInterest;
 }
@@ -584,9 +581,6 @@ export function enrichPaymentsWithBreakdownUpTo(
     }
 
 
-    if (paymentsToDay.length > 0) {
-      console.log(`-----On ${currentDate.toISOString().split('T')[0]}, Payable Principal: ${payablePrincipal.toFixed(2)}, Payable Interest: ${payableInterest.toFixed(2)}`);
-    }
     for (const payment of paymentsToDay) {
       let enrichedPayment = { ...payment } as EnrichedPayment;
       let breakdown;
@@ -656,3 +650,59 @@ const getPaymentBreakdown = (
     prepaymentAmount: prepaymentPrincipal
   };
 };
+
+/**
+ * Calculate the total interest that would be paid if following the scheduled payments exactly.
+ * This simulates making payments exactly on schedule and calculates the total interest.
+ * 
+ * @param loanParams - Loan parameters
+ * @param schedule - Array of scheduled payments
+ * @returns The total interest that would be paid following the schedule
+ */
+export function calculateScheduledInterest(
+  upToDate: Date,
+  loanParams: LoanParams,
+  schedule: ScheduledPayment[]
+): number {
+  if (schedule.length === 0) {
+    return 0;
+  }
+
+  let totalInterest = 0;
+  let remainingPrincipal = loanParams.principal;
+  let lastDate = new Date(loanParams.startDate);
+  const fixedPeriodEndDate = addMonths(new Date(loanParams.startDate), loanParams.fixedPeriodMonths);
+
+  // Process each scheduled payment
+  for (const scheduleItem of schedule) {
+    if (new Date(scheduleItem.scheduledDate) > upToDate) {
+      break;
+    }
+    console.log(`Calculating interest up to scheduled date: ${scheduleItem.scheduledDate}`);
+    console.log("Remaining principal before payment: ", remainingPrincipal.toFixed(2), totalInterest.toFixed(2));
+    const scheduledDate = new Date(scheduleItem.scheduledDate);
+
+    // Calculate interest accrued from lastDate to scheduledDate
+    const currentDate = new Date(lastDate);
+    let periodInterest = 0;
+
+    while (currentDate < scheduledDate) {
+      const annualInterestRate = currentDate < fixedPeriodEndDate
+        ? loanParams.fixedRate
+        : loanParams.floatingRate;
+
+      const dailyInterestRate = (annualInterestRate / 100) / 365;
+      periodInterest += remainingPrincipal * dailyInterestRate;
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    totalInterest += periodInterest;
+    
+    // Reduce principal by scheduled amount
+    remainingPrincipal -= scheduleItem.scheduledPrincipalAmount;
+    lastDate = scheduledDate;
+  }
+
+  return totalInterest;
+}

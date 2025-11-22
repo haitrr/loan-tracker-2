@@ -44,7 +44,9 @@ export default function LoanSummaryDashboard({
           <h3 className="text-sm font-medium text-gray-300 mb-1">Total Interest Paid</h3>
           <p className="text-2xl font-bold text-red-300">{formatCurrency(summary.totalInterestPaid)}</p>
           <p className="text-xs text-gray-400 mt-1">
-            {((summary.totalInterestPaid / summary.totalPrincipalPaid) * 100).toFixed(1)}% of principal
+            {summary.totalPrincipalPaid > 0 
+              ? `${((summary.totalInterestPaid / summary.totalPrincipalPaid) * 100).toFixed(1)}% of principal`
+              : 'No principal paid yet'}
           </p>
         </div>
 
@@ -62,6 +64,29 @@ export default function LoanSummaryDashboard({
             <p className="text-2xl font-bold text-orange-300">{formatCurrency(summary.unpaidAccruedInterest)}</p>
             <p className="text-xs text-gray-400 mt-1">
               Accumulated to today
+            </p>
+          </div>
+        )}
+
+        {summary.scheduledTotalInterest !== undefined && summary.scheduledTotalInterest > 0 && (
+          <div className={`bg-linear-to-br rounded-lg p-4 border ${
+            summary.totalInterestPaid < summary.scheduledTotalInterest
+              ? 'from-cyan-900 to-cyan-800 border-cyan-700'
+              : 'from-amber-900 to-amber-800 border-amber-700'
+          }`}>
+            <h3 className="text-sm font-medium text-gray-300 mb-1">Interest vs Schedule</h3>
+            <p className={`text-2xl font-bold ${
+              summary.totalInterestPaid < summary.scheduledTotalInterest
+                ? 'text-cyan-300'
+                : 'text-amber-300'
+            }`}>
+              {summary.totalInterestPaid < summary.scheduledTotalInterest ? '-' : '+'}
+              {formatCurrency(Math.abs(summary.totalInterestPaid - summary.scheduledTotalInterest))}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {summary.totalInterestPaid < summary.scheduledTotalInterest
+                ? 'Saved by early payments'
+                : 'Extra from late payments'}
             </p>
           </div>
         )}
