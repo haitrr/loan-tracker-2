@@ -110,6 +110,29 @@ export default function Home() {
     return [];
   };
   
+  const handleScheduleUpdated = async (updatedSchedule: ScheduledPayment[]) => {
+    setScheduledPayments(updatedSchedule);
+    setSchedule(updatedSchedule);
+    
+    // Recalculate summary with updated schedule
+    if (selectedLoan) {
+      const params: LoanParams = {
+        id: selectedLoan.id,
+        principal: selectedLoan.principal,
+        fixedRate: selectedLoan.fixedRate,
+        floatingRate: selectedLoan.floatingRate,
+        fixedPeriodMonths: selectedLoan.fixedPeriodMonths,
+        totalTermMonths: selectedLoan.totalTermMonths,
+        startDate: new Date(selectedLoan.startDate),
+        paymentFrequency: selectedLoan.paymentFrequency as 'monthly' | 'quarterly' | 'semi-annual' | 'annual',
+        prepaymentFeePercentage: selectedLoan.prepaymentFeePercentage || 0,
+      };
+      
+      const loanSummary = calculateLoanSummary(updatedSchedule, params, payments);
+      setSummary(loanSummary);
+    }
+  };
+  
   const handlePaymentAdded = async () => {
     if (selectedLoan) {
       await handleLoadLoan(selectedLoan.id);
@@ -274,7 +297,11 @@ export default function Home() {
                 summary={summary} 
                 scheduledPayments={scheduledPayments}
               />
-              <PaymentScheduleTable schedule={schedule} />
+              <PaymentScheduleTable 
+                schedule={schedule} 
+                loanId={selectedLoan.id}
+                onScheduleUpdated={handleScheduleUpdated}
+              />
             </>
           );
         })()}
