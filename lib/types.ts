@@ -33,6 +33,7 @@ export type EnrichedPaymentInfo = {
   interestPaid: number;
   prepaymentFee: number;
   prepaymentAmount: number;
+  interestSaved: number; // Interest saved by making this prepayment
 }
 
 export type EnrichedPayment = Payment & EnrichedPaymentInfo;

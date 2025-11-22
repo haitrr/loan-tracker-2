@@ -1,3 +1,4 @@
+import { scheduler } from 'timers/promises';
 import { LoanParams, LoanSummary, Payment, ScheduledPayment, EnrichedPayment, EnrichedPaymentInfo, PaymentType } from './types';
 /**
  * Get the number of payments per year based on frequency
@@ -197,7 +198,7 @@ export function calculateLoanSummary(
   const toDay = new Date();
 
   // Enrich payments with breakdown
-  const enrichedPayments = enrichPaymentsWithBreakdownUpTo(
+  const enrichedPayments = enrichPaymentsWithBreakdownUpToInner(
     new Date(),
     payments,
     params,
@@ -544,7 +545,8 @@ export function calculatePayableInterestUpTo(
 }
 
 
-export function enrichPaymentsWithBreakdownUpTo(
+
+export function enrichPaymentsWithBreakdownUpToInner(
   upToDate: Date,
   payments: Payment[],
   params: LoanParams,
@@ -590,7 +592,8 @@ export function enrichPaymentsWithBreakdownUpTo(
           principalPaid: 0,
           interestPaid: payableInterest,
           prepaymentFee: 0,
-          prepaymentAmount: 0
+          prepaymentAmount: 0,
+          interestSaved: 0
         }
         enrichedPayment.paymentAmount  = payableInterest;
       } else {
@@ -598,7 +601,7 @@ export function enrichPaymentsWithBreakdownUpTo(
           payment.paymentAmount,
           payablePrincipal,
           payableInterest,
-          params.prepaymentFeePercentage || 0
+          params.prepaymentFeePercentage || 0,
         );
       }
       enrichedPayment = {
@@ -606,6 +609,8 @@ export function enrichPaymentsWithBreakdownUpTo(
         principalPaid: breakdown.principalPaid,
         interestPaid: breakdown.interestPaid,
         prepaymentFee: breakdown.prepaymentFee,
+        prepaymentAmount: breakdown.prepaymentAmount,
+        interestSaved: breakdown.interestSaved
       }
       enrichedPayments.push(enrichedPayment);
       // Reduce payable amounts
@@ -622,7 +627,7 @@ const getPaymentBreakdown = (
   paymentAmount: number,
   payablePrincipal: number,
   payableInterest: number,
-  prepaymentFeePercentage: number = 0
+  prepaymentFeePercentage: number = 0,
 ): EnrichedPaymentInfo => {
   // Step 1: Apply to Payable Interest first
   const interestPaid = Math.min(paymentAmount, payableInterest);
@@ -706,4 +711,73 @@ export function calculateScheduledInterest(
   }
 
   return totalInterest;
+}
+
+export function calculateInterestSavedByPrepayment(
+  upTo: Date,
+  enrichedPayment: EnrichedPayment,
+  loanParams: LoanParams,
+  payments: Payment[],
+  schedule: ScheduledPayment[]
+): number {
+  if(enrichedPayment.prepaymentAmount === undefined || enrichedPayment.prepaymentAmount <= 0) {
+    return 0;
+  }
+  const payment = payments.find(p => p.id === enrichedPayment.id);
+  if (!payment) {
+    throw new Error(`Payment with ID ${enrichedPayment.id} not found.`);
+  }
+
+  const normalEnriched = enrichPaymentsWithBreakdownUpToInner(
+    upTo,
+    payments,
+    loanParams,
+    schedule
+  );
+
+  const paymentWithPrepaymentRemoved: Payment = {
+    ...payment,
+    paymentAmount: payment.paymentAmount - enrichedPayment.prepaymentAmount - (enrichedPayment.prepaymentFee || 0)
+  };
+
+  const removedPrepaymentEnriched = enrichPaymentsWithBreakdownUpToInner(
+    upTo,
+    payments.map(p => p.id === payment.id ? paymentWithPrepaymentRemoved : p),
+    loanParams,
+    schedule
+  );
+
+  const normalInterest = normalEnriched.reduce((sum, p) => sum + (p.interestPaid || 0), 0);
+  const removedInterest = removedPrepaymentEnriched.reduce((sum, p) => sum + (p.interestPaid || 0), 0);
+
+  return removedInterest - normalInterest - enrichedPayment.prepaymentFee;
+}
+
+export function enrichPaymentsWithBreakdownUpTo(
+  upToDate: Date,
+  payments: Payment[],
+  loanParams: LoanParams,
+  schedule: ScheduledPayment[]
+): EnrichedPayment[] {
+  const enrichedPayments = enrichPaymentsWithBreakdownUpToInner(
+    upToDate,
+    payments,
+    loanParams,
+    schedule
+  );
+
+  return enrichedPayments.map(enrichedPayment => {
+    console.log("Calculating interest saved for payment ID:", enrichedPayment.id);
+    const interestSaved = calculateInterestSavedByPrepayment(
+      upToDate,
+      enrichedPayment,
+      loanParams,
+      payments,
+      schedule
+    );
+    return {
+      ...enrichedPayment,
+      interestSaved
+    };
+  });
 }

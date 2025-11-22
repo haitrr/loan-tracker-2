@@ -27,6 +27,7 @@ export default function PaymentHistory({
   const totalPrepaymentFees = enrichedPayments.reduce((sum, p) => sum + p.prepaymentFee, 0);
   const totalPrincipalPaid = enrichedPayments.reduce((sum, p) => sum + p.principalPaid, 0);
   const totalInterestPaid = enrichedPayments.reduce((sum, p) => sum + p.interestPaid, 0);
+  const totalInterestSaved = enrichedPayments.reduce((sum, p) => sum + (p.interestSaved || 0), 0);
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
@@ -56,6 +57,12 @@ export default function PaymentHistory({
             <p className="text-lg font-semibold text-yellow-400">{formatCurrency(totalPrepaymentFees)}</p>
           </div>
         )}
+        {totalInterestSaved > 0 && (
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Interest Saved</p>
+            <p className="text-lg font-semibold text-blue-400">{formatCurrency(totalInterestSaved)}</p>
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -67,6 +74,7 @@ export default function PaymentHistory({
               <th className="px-4 py-3 text-right font-semibold text-gray-200">Principal</th>
               <th className="px-4 py-3 text-right font-semibold text-gray-200">Interest</th>
               <th className="px-4 py-3 text-right font-semibold text-gray-200">Prepay Fee</th>
+              <th className="px-4 py-3 text-right font-semibold text-gray-200">Interest Saved</th>
               <th className="px-4 py-3 text-center font-semibold text-gray-200">Type</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-200">Notes</th>
               {onDeletePayment && (
@@ -96,6 +104,9 @@ export default function PaymentHistory({
                   </td>
                   <td className="px-4 py-3 text-right text-yellow-400">
                     {payment.prepaymentFee > 0 ? formatCurrency(payment.prepaymentFee) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-blue-400">
+                    {payment.interestSaved && payment.interestSaved  ? formatCurrency(payment.interestSaved) : '-'}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span
