@@ -360,6 +360,12 @@ async function main() {
       paymentDate: new Date("2025-11-20"),
       paymentAmount: 50_500_000,
     },
+    {
+      id: "69080f46-5aab-a162-9795-eb4fc3ccf383",
+      loanId: loanId,
+      paymentDate: new Date("2025-11-23"),
+      paymentAmount: 202_000_000,
+    },
   ];
 
   for (const paymentData of paymentsData) {
